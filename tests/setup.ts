@@ -30,9 +30,13 @@ const waitForServer = (port: number): Promise<void> => {
 
 beforeAll(async () => {
   console.log('Starting mock server...');
-  mockServer = spawn('node', ['dist/mock-server/server.js'], {
+  mockServer = spawn('npx', ['ts-node', 'src/mock/mock-server.ts'], {
     cwd: resolve(__dirname, '..'),
     detached: true,
+  });
+
+  mockServer.stdout.on('data', (data: Buffer) => {
+    console.log(`Mock server output: ${data}`);
   });
 
   mockServer.stderr.on('data', (data: Buffer) => {
@@ -40,7 +44,8 @@ beforeAll(async () => {
   });
 
   try {
-    await waitForServer(3001);
+    // Wait for both HTTP and WebSocket servers
+    await Promise.all([waitForServer(3000), waitForServer(3001)]);
     console.log('Mock server started successfully');
   } catch (error) {
     console.error('Failed to start mock server:', error);
@@ -55,7 +60,14 @@ afterAll((done) => {
     if (process.platform === 'win32') {
       mockServer.kill();
     } else {
-      process.kill(-mockServer.pid, 'SIGTERM');
+      try {
+        process.kill(-mockServer.pid, 'SIGTERM');
+      } catch (error: any) {
+        // Ignore ESRCH error (process already gone)
+        if (error?.code !== 'ESRCH') {
+          throw error;
+        }
+      }
     }
 
     // Wait for the process to exit
