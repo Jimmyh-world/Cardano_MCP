@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "prompts": {
+    "base": {
+      "name": "Base Cardano Development",
+      "file": "prompts/base.md",
+      "tools": ["*"],
+      "knowledge_base": {
+        "categories": ["*"],
+        "min_relevance": 0.7
+      }
+    },
+    "smart_contract": {
+      "name": "Smart Contract Development",
+      "file": "prompts/smart_contract.md",
+      "tools": ["validatePlutusScript", "compilePlutus", "estimateFees"],
+      "knowledge_base": {
+        "categories": ["smart-contracts", "security"],
+        "min_relevance": 0.8
+      }
+    },
+    "frontend": {
+      "name": "Frontend Development",
+      "file": "prompts/frontend.md",
+      "tools": ["generateWalletConnector", "validateAddress", "getProtocolParameters"],
+      "knowledge_base": {
+        "categories": ["frontend", "wallet-integration"],
+        "min_relevance": 0.7
+      }
+    },
+    "transaction": {
+      "name": "Transaction Building",
+      "file": "prompts/transaction.md",
+      "tools": ["buildTransaction", "estimateFees", "validateAddress"],
+      "knowledge_base": {
+        "categories": ["transactions", "utxo-model"],
+        "min_relevance": 0.85
+      }
+    }
+  },
+  "tool_configurations": {
+    "validatePlutusScript": {
+      "timeout_ms": 5000,
+      "max_script_size_bytes": 1048576,
+      "cache_duration_seconds": 3600
+    },
+    "generateWalletConnector": {
+      "supported_frameworks": ["react", "vue", "angular"],
+      "supported_wallets": ["nami", "eternl", "flint"],
+      "template_version": "1.0.0"
+    },
+    "buildTransaction": {
+      "max_inputs": 100,
+      "max_outputs": 100,
+      "default_ttl_seconds": 7200
+    }
+  },
+  "knowledge_base_settings": {
+    "embedding_model": "text-embedding-3-large",
+    "chunk_size": 512,
+    "chunk_overlap": 50,
+    "update_frequency_hours": 24,
+    "cache_settings": {
+      "max_age_seconds": 3600,
+      "max_size_mb": 1024
+    }
+  },
+  "security_settings": {
+    "rate_limits": {
+      "requests_per_minute": 60,
+      "tokens_per_day": 100000
+    },
+    "validation": {
+      "require_tool_validation": true,
+      "require_security_review": true,
+      "max_script_complexity": 1000
+    }
+  },
+  "integration": {
+    "api_version": "v1",
+    "base_url": "http://localhost:3000/v1",
+    "websocket_url": "ws://localhost:3001",
+    "timeout_ms": 30000,
+    "retry": {
+      "max_attempts": 3,
+      "initial_delay_ms": 1000,
+      "max_delay_ms": 5000
+    }
+  }
+}
