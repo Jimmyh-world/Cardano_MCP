@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import dotenv from "dotenv";
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -17,7 +17,7 @@ class KnowledgeBaseConnector {
   private constructor() {
     this.pool = new Pool({
       host: process.env.POSTGRES_HOST,
-      port: parseInt(process.env.POSTGRES_PORT || "5432"),
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
       database: process.env.POSTGRES_DB,
       user: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
@@ -47,17 +47,14 @@ class KnowledgeBaseConnector {
 
   public async storeVector(data: VectorData): Promise<void> {
     await this.pool.query(
-      "INSERT INTO knowledge_vectors (id, content, embedding, metadata) VALUES ($1, $2, $3, $4)",
+      'INSERT INTO knowledge_vectors (id, content, embedding, metadata) VALUES ($1, $2, $3, $4)',
       [data.id, data.content, data.embedding, data.metadata],
     );
   }
 
-  public async searchSimilar(
-    embedding: number[],
-    limit: number = 5,
-  ): Promise<VectorData[]> {
+  public async searchSimilar(embedding: number[], limit: number = 5): Promise<VectorData[]> {
     const result = await this.pool.query(
-      "SELECT * FROM knowledge_vectors ORDER BY embedding <-> $1 LIMIT $2",
+      'SELECT * FROM knowledge_vectors ORDER BY embedding <-> $1 LIMIT $2',
       [embedding, limit],
     );
     return result.rows;
