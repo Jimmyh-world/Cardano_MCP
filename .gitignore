@@ -60,3 +60,6 @@ npm-debug.log*
 cardano-node/
 db/
 wallet/
+
+# Local development notes
+whats_the_craic.md
