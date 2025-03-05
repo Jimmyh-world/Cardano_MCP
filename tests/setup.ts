@@ -64,7 +64,7 @@ afterAll((done) => {
         process.kill(-mockServer.pid, 'SIGTERM');
       } catch (error: any) {
         // Ignore ESRCH error (process already gone)
-        if (error?.code !== 'ESRCH') {
+        if (error.code !== 'ESRCH') {
           throw error;
         }
       }

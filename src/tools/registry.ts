@@ -4,7 +4,7 @@ interface Tool {
   execute: (...args: any[]) => Promise<any>;
 }
 
-export class ToolRegistry {
+class ToolRegistry {
   private static instance: ToolRegistry;
   private tools: Map<string, Tool>;
 
@@ -23,16 +23,12 @@ export class ToolRegistry {
     this.tools.set(tool.name, tool);
   }
 
-  public hasTool(name: string): boolean {
-    return this.tools.has(name);
+  public getTool(name: string): Tool | undefined {
+    return this.tools.get(name);
   }
 
-  public async executeTool(name: string, ...args: any[]): Promise<any> {
-    const tool = this.tools.get(name);
-    if (!tool) {
-      throw new Error(`Tool not found: ${name}`);
-    }
-    return tool.execute(...args);
+  public getAllTools(): Tool[] {
+    return Array.from(this.tools.values());
   }
 }
 
