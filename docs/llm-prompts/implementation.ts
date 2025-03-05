@@ -8,6 +8,8 @@ import {
   PromptEvent,
   ToolConfiguration,
   McpResponse,
+  SecurityRequest,
+  ValidationFunction,
 } from './types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -120,7 +122,7 @@ export class CardanoPromptSystem implements PromptSystem {
   /**
    * Get knowledge base configuration for a prompt type
    */
-  getKnowledgeBaseConfig(type: string) {
+  getKnowledgeBaseConfig(type: string): Record<string, unknown> {
     const promptDef = this.config.prompts[type];
     if (!promptDef) {
       throw new PromptError(PromptErrorType.INVALID_PROMPT_TYPE, `Prompt type '${type}' not found`);
@@ -132,7 +134,7 @@ export class CardanoPromptSystem implements PromptSystem {
   /**
    * Validate a tool's configuration
    */
-  validateToolConfig(tool: string, config: any): boolean {
+  validateToolConfig(tool: string, config: Record<string, unknown>): boolean {
     const toolConfig = this.config.tool_configurations[tool];
     if (!toolConfig) {
       throw new PromptError(PromptErrorType.TOOL_NOT_AVAILABLE, `Tool '${tool}' not found`);
@@ -161,7 +163,7 @@ export class CardanoPromptSystem implements PromptSystem {
   /**
    * Check security requirements
    */
-  async checkSecurity(request: any): Promise<boolean> {
+  async checkSecurity(request: SecurityRequest): Promise<boolean> {
     try {
       const { rate_limits, validation } = this.config.security_settings;
 
@@ -184,8 +186,8 @@ export class CardanoPromptSystem implements PromptSystem {
     } catch (error) {
       throw new PromptError(
         PromptErrorType.SECURITY_VIOLATION,
-        `Security check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error,
+        `Security check failed: ${this.handleError(error)}`,
+        error instanceof Error ? error : undefined,
       );
     }
   }
@@ -283,7 +285,13 @@ export class CardanoPromptSystem implements PromptSystem {
       );
   }
 
-  private async checkRateLimits(request: any, limits: any): Promise<boolean> {
+  /**
+   * Check rate limits for requests
+   */
+  private async checkRateLimits(
+    request: { type: string } & Record<string, unknown>,
+    limits: Record<string, number>,
+  ): Promise<boolean> {
     const now = Date.now();
     const key = request.type;
     const data = this.rateLimitData.get(key) || { count: 0, timestamp: now };
@@ -305,26 +313,39 @@ export class CardanoPromptSystem implements PromptSystem {
     return true;
   }
 
-  private async validateTools(request: any): Promise<void> {
-    if (request.tools) {
-      for (const tool of request.tools) {
-        if (!this.validateToolConfig(tool.name, tool.config)) {
-          throw new PromptError(
-            PromptErrorType.VALIDATION_ERROR,
-            `Invalid configuration for tool: ${tool.name}`,
-          );
-        }
-      }
+  private async validateTools(request: SecurityRequest): Promise<void> {
+    // Validate tools based on request type
+    const toolValidations = this.config.security_settings.validation.tool_validations;
+    if (toolValidations && toolValidations[request.type]) {
+      // Perform tool-specific validations
+      await Promise.all(
+        toolValidations[request.type].map((validation: ValidationFunction) => validation(request)),
+      );
     }
   }
 
-  private async performSecurityReview(request: any): Promise<void> {
-    // Implement security review logic based on request type
-    const complexity = this.calculateComplexity(request);
-    if (complexity > this.config.security_settings.validation.max_script_complexity) {
+  private handleError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Unknown error';
+  }
+
+  private async performSecurityReview(request: SecurityRequest): Promise<void> {
+    try {
+      // Perform security review logic here
+      const complexity = this.calculateComplexity(request);
+      if (complexity > this.config.security_settings.validation.max_complexity) {
+        throw new PromptError(
+          PromptErrorType.SECURITY_VIOLATION,
+          'Request complexity exceeds maximum allowed',
+        );
+      }
+    } catch (error) {
       throw new PromptError(
         PromptErrorType.SECURITY_VIOLATION,
-        'Request exceeds maximum allowed complexity',
+        `Security review failed: ${this.handleError(error)}`,
+        error instanceof Error ? error : undefined,
       );
     }
   }
