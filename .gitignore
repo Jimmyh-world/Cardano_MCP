@@ -54,4 +54,9 @@ pids/
 *.tsbuildinfo
 
 # Debug log from npm
-npm-debug.log* 
+npm-debug.log*
+
+# Cardano specific
+cardano-node/
+db/
+wallet/
