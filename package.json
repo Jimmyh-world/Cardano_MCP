@@ -26,12 +26,18 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/marked": "^5.0.2",
+    "@types/turndown": "^5.0.5",
+    "axios": "^1.8.1",
+    "dotenv": "^16.4.1",
     "express": "^4.18.2",
+    "jsdom": "^26.0.0",
+    "marked": "^15.0.7",
     "pg": "^8.11.3",
     "pgvector": "^0.1.7",
-    "dotenv": "^16.4.1",
-    "ws": "^8.16.0",
-    "axios": "^1.6.7"
+    "turndown": "^7.2.0",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
