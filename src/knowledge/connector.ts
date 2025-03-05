@@ -10,7 +10,7 @@ interface VectorData {
   metadata: Record<string, any>;
 }
 
-class KnowledgeBaseConnector {
+export class KnowledgeBaseConnector {
   private static instance: KnowledgeBaseConnector;
   private pool: Pool;
 
