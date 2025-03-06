@@ -27,144 +27,53 @@ export class CardanoPromptSystem implements PromptSystem {
   private eventHandlers: ((event: PromptEvent) => void)[] = [];
   private wsConnection: WebSocket | null = null;
   private rateLimitData: Map<string, { count: number; timestamp: number }> = new Map();
-  private initialized = false;
 
   constructor(config: PromptConfig) {
     this.config = config;
+    this.setupWebSocket();
   }
 
-  async initialize(): Promise<void> {
-    if (this.initialized) {
-      return;
-    }
-
+  private setupWebSocket() {
     try {
-      await validateConfig(this.config);
-      await this.setupWebSocket();
-      this.initialized = true;
-    } catch (error) {
-      throw new PromptError(
-        PromptErrorType.INITIALIZATION,
-        `Failed to initialize prompt system: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error,
-      );
-    }
-  }
+      this.wsConnection = new WebSocket(this.config.integration.websocket_url);
 
-  async execute(prompt: string, context?: PromptContext): Promise<PromptResult> {
-    if (!this.initialized) {
-      throw new PromptError(
-        PromptErrorType.INITIALIZATION,
-        'Prompt system not initialized. Call initialize() first.',
-      );
-    }
-
-    try {
-      // Initialize result with required fields
-      const result: PromptResult = {
-        response: '',
-        events: [],
-      };
-
-      const startTime = Date.now();
-
-      // Execute prompt using MCP server
-      const response = await this.executeMcpRequest(prompt, context || {});
-
-      // Update result with response data
-      result.response = response.result;
-      if (response.content) {
-        result.response = response.content;
-      }
-      if (response.tools_used) {
-        result.tools_used = response.tools_used;
-      }
-      if (response.knowledge_accessed) {
-        result.knowledge_accessed = response.knowledge_accessed;
-      }
-      if (response.token_usage) {
-        result.token_usage = response.token_usage;
-      }
-      result.execution_time_ms = Date.now() - startTime;
-      result.success = true;
-
-      return result;
-    } catch (error) {
-      throw new PromptError(
-        PromptErrorType.EXECUTION,
-        `Failed to execute prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error,
-      );
-    }
-  }
-
-  handleError(error: unknown): void {
-    if (error instanceof PromptError) {
-      this.emitEvent({
-        type: 'error',
-        timestamp: Date.now(),
-        data: {
-          type: error.type,
-          message: error.message,
-          details: error.details,
-        },
+      this.wsConnection.on('open', () => {
+        this.emitEvent({
+          type: 'tools_accessed',
+          timestamp: Date.now(),
+          data: { status: 'connected' },
+        });
       });
-    } else {
-      this.emitEvent({
-        type: 'error',
-        timestamp: Date.now(),
-        data: {
-          type: PromptErrorType.EXECUTION,
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: error,
-        },
-      });
-    }
-  }
 
-  private async setupWebSocket(): Promise<void> {
-    try {
-      if (this.config.integration?.websocket_url) {
-        this.wsConnection = new WebSocket(this.config.integration.websocket_url);
-
-        this.wsConnection.on('open', () => {
+      this.wsConnection.on('message', (data: WebSocket.Data) => {
+        try {
           this.emitEvent({
-            type: 'connection',
+            type: 'knowledge_accessed',
             timestamp: Date.now(),
-            data: { status: 'connected' },
+            data: JSON.parse(data.toString()),
           });
-        });
-
-        this.wsConnection.on('message', (data: WebSocket.Data) => {
-          try {
-            this.emitEvent({
-              type: 'message',
-              timestamp: Date.now(),
-              data: JSON.parse(data.toString()),
-            });
-          } catch (error) {
-            this.emitEvent({
-              type: 'error',
-              timestamp: Date.now(),
-              data: { error: 'Failed to parse WebSocket message' },
-            });
-          }
-        });
-
-        this.wsConnection.on('error', (error: WebSocket.ErrorEvent) => {
+        } catch (error) {
           this.emitEvent({
             type: 'error',
             timestamp: Date.now(),
-            data: { error: error.message || 'WebSocket error' },
+            data: { error: 'Failed to parse WebSocket message' },
           });
+        }
+      });
+
+      this.wsConnection.on('error', (error: WebSocket.ErrorEvent) => {
+        this.emitEvent({
+          type: 'error',
+          timestamp: Date.now(),
+          data: { error: error.message || 'WebSocket error' },
         });
-      }
+      });
     } catch (error) {
-      throw new PromptError(
-        PromptErrorType.INITIALIZATION,
-        'Failed to setup WebSocket connection',
-        error,
-      );
+      this.emitEvent({
+        type: 'error',
+        timestamp: Date.now(),
+        data: { error: 'Failed to setup WebSocket connection' },
+      });
     }
   }
 
@@ -228,11 +137,30 @@ export class CardanoPromptSystem implements PromptSystem {
   /**
    * Validate a tool's configuration
    */
-  validateToolConfig(tool: string, config: unknown): boolean {
-    if (!this.config.tool_configurations?.[tool]) {
-      throw new PromptError(PromptErrorType.VALIDATION, `Tool not found: ${tool}`);
+  validateToolConfig(tool: string, config: ToolConfiguration): boolean {
+    const toolConfig = this.config.tool_configurations[tool];
+    if (!toolConfig) {
+      throw new PromptError(PromptErrorType.TOOL_NOT_AVAILABLE, `Tool '${tool}' not found`);
     }
-    return true; // Placeholder implementation
+
+    try {
+      switch (tool) {
+        case 'validatePlutusScript':
+          return this.validatePlutusScriptConfig(config);
+        case 'generateWalletConnector':
+          return this.validateWalletConnectorConfig(config);
+        case 'buildTransaction':
+          return this.validateTransactionConfig(config);
+        default:
+          return true;
+      }
+    } catch (error) {
+      throw new PromptError(
+        PromptErrorType.VALIDATION_ERROR,
+        `Failed to validate tool config: ${this.handleError(error)}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 
   /**
@@ -263,6 +191,65 @@ export class CardanoPromptSystem implements PromptSystem {
         PromptErrorType.SECURITY_VIOLATION,
         `Security check failed: ${this.handleError(error)}`,
         error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Execute a prompt with context
+   */
+  async executePrompt(context: PromptContext): Promise<PromptResult> {
+    try {
+      // Load prompt
+      const prompt = await this.loadPrompt(context.type);
+
+      // Initialize result
+      const result: PromptResult = {
+        success: false,
+        response: '',
+        tools_used: [],
+        knowledge_accessed: [],
+        execution_time_ms: 0,
+        token_usage: {
+          prompt: 0,
+          completion: 0,
+          total: 0,
+        },
+      };
+
+      const startTime = Date.now();
+
+      // Validate security before execution
+      await this.checkSecurity({
+        type: 'prompt_execution',
+        context,
+      });
+
+      // Execute prompt using MCP server
+      const response = await this.executeMcpRequest(prompt, context);
+
+      // Update result
+      result.success = true;
+      result.response = response.content;
+      result.tools_used = response.tools_used;
+      result.knowledge_accessed = response.knowledge_accessed;
+      result.execution_time_ms = Date.now() - startTime;
+      result.token_usage = response.token_usage;
+
+      // Emit completion event
+      this.emitEvent({
+        type: 'execution_complete',
+        timestamp: Date.now(),
+        data: result,
+      });
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new PromptError(
+        PromptErrorType.EXECUTION_TIMEOUT,
+        `Prompt execution failed: ${message}`,
+        error,
       );
     }
   }
@@ -330,16 +317,12 @@ export class CardanoPromptSystem implements PromptSystem {
   }
 
   private async validateTools(request: { type: string } & Record<string, unknown>): Promise<void> {
-    if (!this.initialized) {
-      throw new PromptError(PromptErrorType.INITIALIZATION, 'System not initialized');
-    }
-
     // Validate tools based on request type
     if (request.tools && Array.isArray(request.tools)) {
       for (const tool of request.tools) {
         if (!this.validateToolConfig(tool.name, tool.config)) {
           throw new PromptError(
-            PromptErrorType.VALIDATION,
+            PromptErrorType.VALIDATION_ERROR,
             `Invalid configuration for tool: ${tool.name}`,
           );
         }
@@ -347,49 +330,43 @@ export class CardanoPromptSystem implements PromptSystem {
     }
   }
 
-  private async performSecurityReview(request: Record<string, unknown>): Promise<void> {
-    if (!this.initialized) {
-      throw new PromptError(PromptErrorType.INITIALIZATION, 'System not initialized');
+  private handleError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
     }
+    return 'Unknown error';
+  }
 
+  private async performSecurityReview(request: Record<string, unknown>): Promise<void> {
     try {
-      // Convert request to McpRequest type safely
-      const mcpRequest: Partial<McpRequest> = {
-        tools: Array.isArray(request.tools) ? request.tools : [],
-        script: typeof request.script === 'string' ? request.script : '',
-      };
-
-      const complexity = this.calculateComplexity(mcpRequest);
+      // Perform security review logic here
+      const complexity = this.calculateComplexity(request as McpRequest);
       if (complexity > this.config.security_settings.validation.max_script_complexity) {
         throw new PromptError(
-          PromptErrorType.VALIDATION,
+          PromptErrorType.SECURITY_VIOLATION,
           'Request complexity exceeds maximum allowed',
         );
       }
     } catch (error) {
       throw new PromptError(
-        PromptErrorType.VALIDATION,
-        `Security review failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error,
+        PromptErrorType.SECURITY_VIOLATION,
+        `Security review failed: ${this.handleError(error)}`,
+        error instanceof Error ? error : undefined,
       );
     }
   }
 
   private async executeMcpRequest(prompt: string, context: PromptContext): Promise<McpResponse> {
     try {
-      if (!this.config.integration?.base_url) {
-        throw new PromptError(PromptErrorType.INITIALIZATION, 'Missing integration base URL');
-      }
-
       const response = await axios.post<McpResponse>(
         `${this.config.integration.base_url}/execute`,
         {
           prompt,
           context,
-          version: this.config.integration?.api_version,
+          version: this.config.integration.api_version,
         },
         {
-          timeout: this.config.integration?.timeout_ms,
+          timeout: this.config.integration.timeout_ms,
           headers: {
             'Content-Type': 'application/json',
           },
@@ -400,7 +377,7 @@ export class CardanoPromptSystem implements PromptSystem {
     } catch (error) {
       if (error instanceof AxiosError) {
         throw new PromptError(
-          PromptErrorType.NETWORK,
+          PromptErrorType.EXECUTION_TIMEOUT,
           `MCP server request failed: ${error.message}`,
           error,
         );
@@ -444,12 +421,12 @@ export class CardanoPromptSystem implements PromptSystem {
     return (config.max_inputs || 0) <= maxInputs && (config.max_outputs || 0) <= maxOutputs;
   }
 
-  private calculateComplexity(request: Partial<McpRequest>): number {
+  private calculateComplexity(request: McpRequest): number {
     let complexity = 0;
-    if (Array.isArray(request.tools)) {
+    if (request.tools) {
       complexity += request.tools.length * 10;
     }
-    if (typeof request.script === 'string') {
+    if (request.script) {
       complexity += request.script.length / 100;
     }
     return complexity;
@@ -469,30 +446,31 @@ async function example(): Promise<void> {
   });
 
   try {
-    // Initialize the system
-    await promptSystem.initialize();
-
-    // Create context
+    // Create context for smart contract development
     const context: PromptContext = {
       type: 'smart_contract',
-      tools: ['validatePlutusScript'],
+      tools: [
+        {
+          name: 'validatePlutusScript',
+          config: config.tool_configurations.validatePlutusScript,
+        },
+      ],
       knowledge_base: {
         categories: ['smart-contracts', 'security'],
         min_relevance: 0.8,
       },
+      security: config.security_settings,
     };
 
     // Execute prompt
-    const result = await promptSystem.execute('Create a simple Plutus smart contract', context);
+    const result = await promptSystem.executePrompt(context);
     console.log('Execution result:', result);
   } catch (error: unknown) {
     if (error instanceof PromptError) {
-      console.error('Error:', error.type, error.message);
-      if (error.details) {
-        console.error('Details:', error.details);
-      }
+      console.error('Prompt error:', error.type, error.message);
     } else {
-      console.error('Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
+      const unknownError = error as Error;
+      console.error('Unexpected error:', unknownError?.message || 'Unknown error occurred');
     }
   }
 }
@@ -500,7 +478,10 @@ async function example(): Promise<void> {
 // Run example if this file is executed directly
 if (require.main === module) {
   example().catch((error: unknown) => {
-    console.error('Fatal error:', error instanceof Error ? error.message : 'Unknown error');
-    process.exit(1);
+    if (error instanceof Error) {
+      console.error('Error:', error.message);
+    } else {
+      console.error('Unknown error occurred');
+    }
   });
 }

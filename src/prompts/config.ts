@@ -1,66 +1,73 @@
 import { PromptConfig } from '../types';
 
-const config: PromptConfig = {
-  endpoint: 'http://localhost:3000',
-  apiKey: process.env.MCP_API_KEY,
-  timeout: 30000,
+export const promptConfig: PromptConfig = {
+  version: '1.0.0',
   prompts: {
     // Transaction validation prompt
     validateTransaction: {
-      name: 'validateTransaction',
-      file: 'prompts/validate-transaction.md',
-      tools: ['validatePlutusScript', 'analyzePlutusCode'],
+      name: 'Validate Transaction',
+      file: 'validate-transaction.txt',
+      tools: ['validatePlutusScript', 'checkUtxos'],
       knowledge_base: {
-        categories: ['smart-contracts', 'validation'],
+        categories: ['smart-contracts', 'transaction-validation'],
         min_relevance: 0.8,
       },
     },
-    // Wallet integration prompt
-    walletIntegration: {
-      name: 'walletIntegration',
-      file: 'prompts/wallet-integration.md',
-      tools: ['validateMonetaryPolicy'],
+    // Smart contract analysis prompt
+    analyzeContract: {
+      name: 'Analyze Smart Contract',
+      file: 'analyze-contract.txt',
+      tools: ['analyzePlutusCode', 'checkVulnerabilities'],
       knowledge_base: {
-        categories: ['wallets', 'integration'],
-        min_relevance: 0.7,
+        categories: ['smart-contracts', 'security-patterns'],
+        min_relevance: 0.85,
+      },
+    },
+    // Token policy verification prompt
+    verifyTokenPolicy: {
+      name: 'Verify Token Policy',
+      file: 'verify-token-policy.txt',
+      tools: ['validateMonetaryPolicy', 'checkTokenomics'],
+      knowledge_base: {
+        categories: ['monetary-policy', 'tokenomics'],
+        min_relevance: 0.9,
       },
     },
   },
   tool_configurations: {
     validatePlutusScript: {
-      name: 'validatePlutusScript',
-      description: 'Validates Plutus smart contract scripts',
-      parameters: {
-        timeout_ms: 5000,
-        max_script_size_bytes: 1048576,
-        supported_frameworks: ['plutus-v1', 'plutus-v2'],
-      },
+      timeout_ms: 5000,
+      max_script_size_bytes: 1048576, // 1MB
+      supported_frameworks: ['plutus-v2'],
     },
     analyzePlutusCode: {
-      name: 'analyzePlutusCode',
-      description: 'Analyzes Plutus code for best practices and potential issues',
-      parameters: {
-        timeout_ms: 10000,
-      },
+      timeout_ms: 10000,
+      cache_duration_seconds: 3600,
     },
     validateMonetaryPolicy: {
-      name: 'validateMonetaryPolicy',
-      description: 'Validates monetary policy scripts',
-      parameters: {
-        timeout_ms: 3000,
-        supported_wallets: ['nami', 'eternl', 'flint'],
-      },
+      timeout_ms: 3000,
+      supported_wallets: ['nami', 'eternl', 'flint'],
+    },
+  },
+  knowledge_base_settings: {
+    embedding_model: 'cardano-bert-v1',
+    chunk_size: 512,
+    chunk_overlap: 50,
+    update_frequency_hours: 24,
+    cache_settings: {
+      max_age_seconds: 86400,
+      max_size_mb: 1024,
     },
   },
   security_settings: {
-    validation: {
-      max_script_complexity: 1000,
-      require_tool_validation: true,
-      require_security_review: true,
-    },
     rate_limits: {
       requests_per_minute: 60,
       tokens_per_day: 100000,
+    },
+    validation: {
+      require_tool_validation: true,
+      require_security_review: true,
+      max_script_complexity: 8,
     },
   },
   integration: {
