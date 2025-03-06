@@ -3,10 +3,11 @@
  */
 
 export interface PromptConfig {
-  version: string;
+  endpoint: string;
+  apiKey?: string;
+  timeout?: number;
   prompts: Record<string, PromptDefinition>;
   tool_configurations: Record<string, ToolConfiguration>;
-  knowledge_base_settings: KnowledgeBaseSettings;
   security_settings: SecuritySettings;
   integration: IntegrationSettings;
 }
@@ -22,15 +23,16 @@ export interface PromptDefinition {
 }
 
 export interface ToolConfiguration {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
   timeout_ms?: number;
   max_script_size_bytes?: number;
-  cache_duration_seconds?: number;
+  template_version?: string;
   supported_frameworks?: string[];
   supported_wallets?: string[];
-  template_version?: string;
   max_inputs?: number;
   max_outputs?: number;
-  default_ttl_seconds?: number;
 }
 
 export interface KnowledgeBaseSettings {
@@ -72,64 +74,29 @@ export interface IntegrationSettings {
  * Interface for interacting with the prompt system
  */
 export interface PromptSystem {
-  /**
-   * Load a specific prompt by type
-   */
-  loadPrompt(type: string): Promise<string>;
-
-  /**
-   * Get available tools for a prompt type
-   */
-  getAvailableTools(type: string): string[];
-
-  /**
-   * Get knowledge base configuration for a prompt type
-   */
-  getKnowledgeBaseConfig(type: string): {
-    categories: string[];
-    min_relevance: number;
-  };
-
-  /**
-   * Validate a tool's configuration
-   */
-  validateToolConfig(tool: string, config: any): boolean;
-
-  /**
-   * Check if a request meets security requirements
-   */
-  checkSecurity(request: any): Promise<boolean>;
+  initialize(): Promise<void>;
+  execute(prompt: string, context?: PromptContext): Promise<PromptResult>;
+  handleError(error: PromptError): void;
 }
 
 /**
  * Interface for prompt execution context
  */
 export interface PromptContext {
-  type: string;
-  tools: {
-    name: string;
-    config: ToolConfiguration;
-  }[];
-  knowledge_base: {
-    categories: string[];
-    min_relevance: number;
-  };
-  security: SecuritySettings;
+  [key: string]: unknown;
 }
 
 /**
  * Interface for prompt execution result
  */
 export interface PromptResult {
-  success: boolean;
   response: string;
-  tools_used: string[];
-  knowledge_accessed: {
-    category: string;
-    relevance: number;
-  }[];
-  execution_time_ms: number;
-  token_usage: {
+  events?: PromptEvent[];
+  success?: boolean;
+  tools_used?: string[];
+  knowledge_accessed?: Array<{ category: string; relevance: number }>;
+  execution_time_ms?: number;
+  token_usage?: {
     prompt: number;
     completion: number;
     total: number;
@@ -140,20 +107,22 @@ export interface PromptResult {
  * Error types for the prompt system
  */
 export enum PromptErrorType {
-  INVALID_PROMPT_TYPE = 'INVALID_PROMPT_TYPE',
-  TOOL_NOT_AVAILABLE = 'TOOL_NOT_AVAILABLE',
-  SECURITY_VIOLATION = 'SECURITY_VIOLATION',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-  KNOWLEDGE_BASE_ERROR = 'KNOWLEDGE_BASE_ERROR',
-  EXECUTION_TIMEOUT = 'EXECUTION_TIMEOUT',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  INITIALIZATION = 'initialization',
+  EXECUTION = 'execution',
+  NETWORK = 'network',
+  VALIDATION = 'validation',
+  INVALID_PROMPT_TYPE = 'invalid_prompt_type',
+  TOOL_NOT_AVAILABLE = 'tool_not_available',
+  SECURITY_VIOLATION = 'security_violation',
+  RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
+  EXECUTION_TIMEOUT = 'execution_timeout',
 }
 
 export class PromptError extends Error {
   constructor(
     public type: PromptErrorType,
     message: string,
-    public details?: any,
+    public details?: unknown,
   ) {
     super(message);
     this.name = 'PromptError';
@@ -164,22 +133,21 @@ export class PromptError extends Error {
  * Utility types for prompt system events
  */
 export type PromptEvent = {
-  type: 'prompt_loaded' | 'tools_accessed' | 'knowledge_accessed' | 'execution_complete' | 'error';
-  timestamp: number;
-  data: any;
+  type: string;
+  data: unknown;
+  timestamp?: number;
 };
 
 /**
  * Interface for MCP Server Response
  */
 export interface McpResponse {
-  content: string;
-  tools_used: string[];
-  knowledge_accessed: {
-    category: string;
-    relevance: number;
-  }[];
-  token_usage: {
+  result: string;
+  error?: string;
+  content?: string;
+  tools_used?: string[];
+  knowledge_accessed?: Array<{ category: string; relevance: number }>;
+  token_usage?: {
     prompt: number;
     completion: number;
     total: number;
@@ -189,4 +157,15 @@ export interface McpResponse {
 export interface ComplexityRequest {
   prompt?: string;
   messages?: Array<{ content: string }>;
+}
+
+export interface McpRequest {
+  tools: string[];
+  script: string;
+  context?: Record<string, unknown>;
+}
+
+export interface SecurityRequest {
+  type: string;
+  payload: Record<string, unknown>;
 }

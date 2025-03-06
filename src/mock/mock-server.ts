@@ -36,13 +36,14 @@ app.post('/v1/execute', (req, res) => {
   }
 
   const mockResponse: McpResponse = {
+    result: 'Mock response from MCP server',
     content: 'Mock response from MCP server',
     tools_used: ['validatePlutusScript'],
-    knowledge_accessed: [{ category: 'smart-contracts', relevance: 0.95 }],
+    knowledge_accessed: [{ category: 'smart-contracts', relevance: 0.9 }],
     token_usage: {
       prompt: 100,
-      completion: 150,
-      total: 250,
+      completion: 50,
+      total: 150,
     },
   };
 
