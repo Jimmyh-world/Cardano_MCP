@@ -8,12 +8,16 @@ import {
   PromptEvent,
   McpResponse,
   ToolConfiguration,
-  SecuritySettings,
-} from '../types';
+  McpRequest,
+  SecurityRequest,
+} from '../../types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import axios, { AxiosError } from 'axios';
 import WebSocket from 'ws';
+import { execSync } from 'child_process';
+import config from './config.json';
+import { validateConfig } from './connection';
 
 /**
  * Implementation of the Cardano MCP Server Prompt System
@@ -336,7 +340,7 @@ export class CardanoPromptSystem implements PromptSystem {
   private async performSecurityReview(request: Record<string, unknown>): Promise<void> {
     try {
       // Perform security review logic here
-      const complexity = this.calculateComplexity(request);
+      const complexity = this.calculateComplexity(request as SecurityRequest);
       if (complexity > this.config.security_settings.validation.max_script_complexity) {
         throw new PromptError(
           PromptErrorType.SECURITY_VIOLATION,
@@ -417,7 +421,7 @@ export class CardanoPromptSystem implements PromptSystem {
     return (config.max_inputs || 0) <= maxInputs && (config.max_outputs || 0) <= maxOutputs;
   }
 
-  private calculateComplexity(request: any): number {
+  private calculateComplexity(request: Record<string, unknown>): number {
     // Implement complexity calculation logic
     let complexity = 0;
     if (request.tools) {
@@ -433,10 +437,7 @@ export class CardanoPromptSystem implements PromptSystem {
 /**
  * Example usage
  */
-async function example() {
-  // Load configuration
-  const config: PromptConfig = require('./config.json');
-
+async function example(): Promise<void> {
   // Create prompt system
   const promptSystem = new CardanoPromptSystem(config);
 

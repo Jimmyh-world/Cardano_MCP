@@ -1,4 +1,4 @@
-import { PromptConfig } from '../types';
+import { PromptConfig } from '../../types';
 
 /**
  * Test the connection to the MCP server
