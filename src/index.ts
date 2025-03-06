@@ -19,12 +19,20 @@ async function main() {
   const documentationParser = new DocumentationParser();
   const documentationFetcher = new DocumentationFetcher();
 
+  // Determine if repositories module should be enabled
+  const enableRepositories = process.env.ENABLE_REPOSITORIES === 'true';
+
+  if (enableRepositories) {
+    console.log('Repositories module enabled');
+  }
+
   // Create the server
   const server = new CardanoMcpServer({
     name: process.env.MCP_SERVER_NAME || 'cardano-mcp-server',
     version: process.env.MCP_SERVER_VERSION || '1.0.0',
     documentationParser,
     documentationFetcher,
+    enableRepositories,
   });
 
   // Determine the transport type from environment variables

@@ -3,6 +3,7 @@ import { DocumentationParser } from '../knowledge/processors/documentationParser
 import { DocumentationFetcher } from '../knowledge/processors/documentationFetcher';
 import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { integrateRepositoriesModule } from './integrations/repositoryIntegration';
 
 /**
  * Configuration for the Cardano MCP Server
@@ -16,6 +17,8 @@ export interface CardanoMcpServerConfig {
   documentationParser?: DocumentationParser;
   /** Documentation fetcher instance */
   documentationFetcher?: DocumentationFetcher;
+  /** Enable repositories module integration */
+  enableRepositories?: boolean;
 }
 
 /**
@@ -26,6 +29,7 @@ export class CardanoMcpServer {
   private server: McpServer;
   private documentationParser: DocumentationParser | undefined;
   private documentationFetcher: DocumentationFetcher | undefined;
+  private enableRepositories: boolean;
 
   /**
    * Create a new Cardano MCP Server
@@ -40,11 +44,17 @@ export class CardanoMcpServer {
     // Store documentation components
     this.documentationParser = config.documentationParser;
     this.documentationFetcher = config.documentationFetcher;
+    this.enableRepositories = config.enableRepositories ?? false;
 
     // Initialize resources, tools, and prompts
     this.initializeResources();
     this.initializeTools();
     this.initializePrompts();
+
+    // Initialize repositories module if enabled
+    if (this.enableRepositories) {
+      this.initializeRepositories();
+    }
   }
 
   /**
@@ -134,6 +144,14 @@ export class CardanoMcpServer {
         },
       ],
     }));
+  }
+
+  /**
+   * Initialize repositories module integration
+   * This registers all repository-related resources, tools, and prompts
+   */
+  private initializeRepositories(): void {
+    integrateRepositoriesModule(this.server);
   }
 
   /**
