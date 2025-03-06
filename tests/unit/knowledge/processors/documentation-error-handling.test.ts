@@ -136,7 +136,7 @@ describe('Documentation Error Handling Integration', () => {
     });
 
     it('should include context data with the error', () => {
-      const invalidHtml = '<custom-tag>Invalid tag</custom-tag>';
+      const invalidHtml = '<div>Unclosed div';
 
       try {
         parser.parseHtml(invalidHtml);
@@ -144,9 +144,8 @@ describe('Documentation Error Handling Integration', () => {
       } catch (error) {
         const appError = error as AppError;
         expect(appError.context).toBeDefined();
-        expect(appError.context).toHaveProperty('tag');
-        // The actual tag extracted is 'custom' not 'custom-tag'
-        expect(appError.context!.tag).toBe('custom');
+        expect(appError.context).toHaveProperty('unclosedTags');
+        expect(appError.context!.unclosedTags).toContain('div');
       }
     });
   });
