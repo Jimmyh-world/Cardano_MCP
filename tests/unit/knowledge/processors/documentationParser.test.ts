@@ -365,4 +365,94 @@ Subsection content.
       });
     });
   });
+
+  describe('Complex HTML Structures', () => {
+    it('should handle deeply nested sections', async () => {
+      const html = `
+        <div class="section">
+          <h2>Parent Section</h2>
+          <div class="content">
+            <p>Parent content</p>
+            <div class="section">
+              <h3>Child Section</h3>
+              <div class="content">
+                <p>Child content</p>
+                <pre><code>const code = 'nested';</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const sections = await parser.parseHtml(html);
+      expect(sections).toHaveLength(2);
+      expect(sections[0].title).toBe('Parent Section');
+      expect(sections[1].title).toBe('Child Section');
+      expect(sections[1].codeBlocks).toHaveLength(1);
+      expect(sections[1].codeBlocks[0]).toBe("const code = 'nested';");
+    });
+
+    it('should handle sections with special characters', async () => {
+      const html = `
+        <div class="section">
+          <h2>Section &amp; Subsection</h2>
+          <div class="content">
+            <p>Content with &lt;tags&gt; &amp; symbols</p>
+            <pre><code>const special = '&lt;&gt;&amp;';</code></pre>
+          </div>
+        </div>
+      `;
+
+      const sections = await parser.parseHtml(html);
+      expect(sections).toHaveLength(1);
+      expect(sections[0].title).toBe('Section & Subsection');
+      expect(sections[0].content).toContain('Content with <tags> & symbols');
+      expect(sections[0].codeBlocks[0]).toBe("const special = '<>&';");
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle malformed HTML gracefully', async () => {
+      const malformedHtml = `
+        <div class="section">
+          <h2>Broken Section
+          <div class="content">
+            <p>Unclosed paragraph
+            <pre><code>const broken = true;</pre>
+          </unclosed>
+        </broken>
+      `;
+
+      const sections = await parser.parseHtml(malformedHtml);
+      expect(sections).toHaveLength(1);
+      expect(sections[0].title).toBe('Broken Section');
+      expect(sections[0].codeBlocks).toHaveLength(1);
+    });
+
+    it('should handle empty sections', async () => {
+      const emptyHtml = `
+        <div class="section">
+          <h2></h2>
+          <div class="content"></div>
+        </div>
+      `;
+
+      const sections = await parser.parseHtml(emptyHtml);
+      expect(sections).toHaveLength(0);
+    });
+
+    it('should handle missing content divs', async () => {
+      const missingContentHtml = `
+        <div class="section">
+          <h2>No Content Section</h2>
+        </div>
+      `;
+
+      const sections = await parser.parseHtml(missingContentHtml);
+      expect(sections).toHaveLength(1);
+      expect(sections[0].title).toBe('No Content Section');
+      expect(sections[0].content).toBe('');
+      expect(sections[0].codeBlocks).toHaveLength(0);
+    });
+  });
 });

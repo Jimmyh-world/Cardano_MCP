@@ -21,6 +21,14 @@ export interface ParserConfig {
   preserveFormatting: boolean;
   /** Custom element selectors to extract */
   customSelectors?: string[];
+  /** Whether to allow empty content */
+  allowEmptyContent: boolean;
+  /** Whether to leniently parse HTML */
+  lenientParsing: boolean;
+  /** Title selector for sections */
+  titleSelector: string;
+  /** Content selector for sections */
+  contentSelector: string;
 }
 
 /**
@@ -32,6 +40,10 @@ const DEFAULT_CONFIG: ParserConfig = {
   extractCodeBlocks: true,
   preserveFormatting: false,
   customSelectors: [],
+  allowEmptyContent: false,
+  lenientParsing: false,
+  titleSelector: 'h1, h2, h3, h4, h5, h6',
+  contentSelector: 'div',
 };
 
 /**
@@ -91,6 +103,24 @@ export interface ParsedSection {
 export class DocumentationParser {
   private config: ParserConfig;
   private turndownService: TurndownService;
+  private allowedTags: string[];
+
+  private static readonly SELF_CLOSING_TAGS = [
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'param',
+    'source',
+    'track',
+    'wbr',
+  ];
 
   constructor(config: Partial<ParserConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -98,104 +128,100 @@ export class DocumentationParser {
       headingStyle: 'atx',
       codeBlockStyle: 'fenced',
     });
+    this.allowedTags = [
+      'div',
+      'span',
+      'p',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'ul',
+      'ol',
+      'li',
+      'a',
+      'code',
+      'pre',
+      'strong',
+      'em',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'th',
+      'td',
+      'blockquote',
+      'img',
+      'br',
+      'hr',
+      // Add any additional allowed tags here
+    ];
   }
 
   /**
    * Validates HTML syntax before parsing
    */
   private validateHtmlSyntax(html: string): void {
-    // Step 1: Extract all tags
-    const tags = html.match(/<[^>]+>/g) || [];
-
-    // Step 2: Basic tag validation and whitelist check
     const tagStack: string[] = [];
+    const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>/g;
+    let match;
 
-    for (const tag of tags) {
-      // First, extract the tag name and validate its format
-      const tagInfo = this.parseTag(tag);
+    while ((match = tagPattern.exec(html)) !== null) {
+      const [fullTag, tagName, attributes] = match;
+      const normalizedTagName = tagName.toLowerCase();
+      const isClosing = fullTag.startsWith('</');
+      const isSelfClosing =
+        !isClosing &&
+        (attributes.endsWith('/') ||
+          DocumentationParser.SELF_CLOSING_TAGS.includes(normalizedTagName));
 
-      if (!tagInfo) {
+      // Validate tag name
+      if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(tagName)) {
         throw new DocumentationError(
           DocumentationErrorType.PARSE_ERROR,
-          'Invalid HTML: malformed tag syntax',
+          `Invalid HTML: malformed tag syntax "${tagName}"`,
         );
       }
 
-      const { tagName, isClosing, isSelfClosing } = tagInfo;
-
-      // Check against whitelist
-      if (!VALID_HTML_TAGS.has(tagName)) {
+      // Validate tag is supported
+      if (!this.allowedTags.includes(normalizedTagName)) {
         throw new DocumentationError(
           DocumentationErrorType.PARSE_ERROR,
           `Invalid HTML: unsupported tag "${tagName}"`,
         );
       }
 
-      // Handle tag balance
+      // Handle tag balance with improved whitespace handling
       if (isSelfClosing) {
         continue;
       }
 
       if (isClosing) {
         const lastTag = tagStack.pop();
-        if (!lastTag || lastTag !== tagName) {
+        if (!lastTag || lastTag.toLowerCase() !== normalizedTagName) {
+          // Try to recover from malformed HTML by ignoring the unmatched closing tag
+          if (this.config.lenientParsing) {
+            continue;
+          }
           throw new DocumentationError(
             DocumentationErrorType.PARSE_ERROR,
             'Invalid HTML: unmatched closing tag',
           );
         }
       } else {
-        tagStack.push(tagName);
+        tagStack.push(normalizedTagName);
       }
     }
 
-    if (tagStack.length > 0) {
+    // Check for unclosed tags
+    if (tagStack.length > 0 && !this.config.lenientParsing) {
       throw new DocumentationError(
         DocumentationErrorType.PARSE_ERROR,
         'Invalid HTML: unclosed tags detected',
       );
     }
-  }
-
-  /**
-   * Parse an HTML tag and extract its components
-   * @param tag The HTML tag to parse
-   * @returns Object containing tag information or null if invalid
-   */
-  private parseTag(
-    tag: string,
-  ): { tagName: string; isClosing: boolean; isSelfClosing: boolean } | null {
-    // Handle closing tags with flexible whitespace
-    if (tag.startsWith('</')) {
-      const match = tag.match(/^<\/\s*([\w-]+)\s*>$/);
-      if (!match || !/^[a-zA-Z]/.test(match[1])) {
-        return null;
-      }
-      return {
-        tagName: match[1].toLowerCase(),
-        isClosing: true,
-        isSelfClosing: false,
-      };
-    }
-
-    // Reject space immediately after opening bracket
-    if (tag.match(/^<\s/)) {
-      return null;
-    }
-
-    // Match opening tags with more flexible whitespace
-    const match = tag.match(
-      /^<([\w-]+)((?:\s+[\w-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^'">\s]+))?)*?)\s*(?:\/>|>)$/,
-    );
-    if (!match || !/^[a-zA-Z]/.test(match[1])) {
-      return null;
-    }
-
-    return {
-      tagName: match[1].toLowerCase(),
-      isClosing: false,
-      isSelfClosing: tag.endsWith('/>'),
-    };
   }
 
   /**

@@ -1,10 +1,8 @@
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
-import {
-  DocumentationSource,
-  DocumentationError,
-  DocumentationErrorType,
-} from '../../types/documentation';
+import { DocumentationSource } from '../../types/documentation';
+import { ErrorFactory, ErrorHandler } from '../../utils/errors';
+import { ErrorCode } from '../../utils/errors';
 
 /**
  * Configuration for the documentation fetcher
@@ -64,7 +62,7 @@ export class DocumentationFetcher {
    * Fetches documentation from a source
    * @param source Documentation source to fetch
    * @returns The fetch result
-   * @throws DocumentationError if fetch fails
+   * @throws AppError if fetch fails
    */
   public async fetch(source: DocumentationSource): Promise<FetchResult> {
     try {
@@ -75,47 +73,35 @@ export class DocumentationFetcher {
 
       this.activeRequests++;
 
-      const result = await this.fetchWithRetry(source);
-      return result;
-    } finally {
-      this.activeRequests--;
-    }
-  }
-
-  /**
-   * Fetches with retry logic
-   */
-  private async fetchWithRetry(
-    source: DocumentationSource,
-    attempt: number = 1,
-  ): Promise<FetchResult> {
-    try {
-      const response = await axios.get(source.location, {
-        timeout: this.config.timeout,
-        headers: {
-          'User-Agent': this.config.userAgent,
+      const response = await ErrorHandler.withRetry(
+        async () => {
+          return await axios.get(source.location, {
+            timeout: this.config.timeout,
+            headers: {
+              'User-Agent': this.config.userAgent,
+            },
+          });
         },
-        validateStatus: (status: number) => status < 400,
-      });
+        {
+          maxRetries: this.config.maxRetries,
+          retryDelay: this.config.retryDelay,
+        },
+      );
 
-      return {
+      const result = {
         content: response.data,
         contentType: response.headers['content-type'] || 'text/plain',
         statusCode: response.status,
         headers: response.headers as Record<string, string>,
         timestamp: new Date(),
       };
-    } catch (error) {
-      if (attempt < this.config.maxRetries) {
-        await new Promise<void>((resolve) => setTimeout(resolve, this.config.retryDelay * attempt));
-        return this.fetchWithRetry(source, attempt + 1);
-      }
 
-      throw new DocumentationError(
-        DocumentationErrorType.FETCH_ERROR,
-        `Failed to fetch documentation from ${source.location}`,
-        error,
-      );
+      this.validateContent(result);
+      return result;
+    } catch (error) {
+      throw ErrorHandler.process(error, { source });
+    } finally {
+      this.activeRequests--;
     }
   }
 
@@ -125,44 +111,47 @@ export class DocumentationFetcher {
    * @returns Cleaned main content
    */
   public extractMainContent(html: string): string {
-    const dom = new JSDOM(html);
-    const { document } = dom.window;
+    try {
+      const dom = new JSDOM(html);
+      const { document } = dom.window;
 
-    // Remove unwanted elements
-    ['script', 'style', 'nav', 'footer', 'header'].forEach((tag) => {
-      document.querySelectorAll(tag).forEach((el: Element) => el.remove());
-    });
+      // Remove unwanted elements
+      ['script', 'style', 'nav', 'footer', 'header'].forEach((tag) => {
+        document.querySelectorAll(tag).forEach((el: Element) => el.remove());
+      });
 
-    // Try to find main content
-    const main = document.querySelector('main, article, .content, #content');
-    if (main) {
-      return main.textContent?.trim() || '';
+      // Try to find main content
+      const main = document.querySelector('main, article, .content, #content');
+      if (main) {
+        return main.textContent?.trim() || '';
+      }
+
+      // Fallback to body content
+      return document.body.textContent?.trim() || '';
+    } catch (error) {
+      throw ErrorFactory.documentationParseError(
+        'Failed to parse HTML content',
+        error as Error,
+        { html: html.substring(0, 100) + '...' }, // Include first 100 chars for context
+      );
     }
-
-    // Fallback to body content
-    return document.body.textContent?.trim() || '';
   }
 
   /**
    * Validates the fetched content
    * @param result Fetch result to validate
-   * @throws DocumentationError if content is invalid
+   * @throws AppError if content is invalid
    */
   public validateContent(result: FetchResult): void {
     if (!result.content) {
-      throw new DocumentationError(
-        DocumentationErrorType.VALIDATION_ERROR,
-        'Empty content received',
-      );
+      throw ErrorFactory.documentationValidationError('Empty content received', { result });
     }
 
     if (result.statusCode !== 200) {
-      throw new DocumentationError(
-        DocumentationErrorType.VALIDATION_ERROR,
+      throw ErrorFactory.documentationValidationError(
         `Unexpected status code: ${result.statusCode}`,
+        { result },
       );
     }
-
-    // Add more validation as needed
   }
 }

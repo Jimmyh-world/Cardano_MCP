@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { DocumentationFetcher } from '../../../../src/knowledge/processors/documentationFetcher';
-import { DocumentationError, DocumentationSource } from '../../../../src/types/documentation';
+import { DocumentationSource } from '../../../../src/types/documentation';
+import { AppError } from '../../../../src/utils/errors';
 
 // Mock axios
 jest.mock('axios');
@@ -49,7 +50,14 @@ describe('DocumentationFetcher', () => {
     });
 
     it('should retry on failure', async () => {
-      mockedAxios.get.mockRejectedValueOnce(new Error('Network error')).mockResolvedValueOnce({
+      const networkError = {
+        message: 'Network error',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        request: {}, // Simulate request error with no response
+      };
+
+      mockedAxios.get.mockRejectedValueOnce(networkError).mockResolvedValueOnce({
         data: 'Test content',
         status: 200,
         headers: { 'content-type': 'text/plain' },
@@ -62,10 +70,20 @@ describe('DocumentationFetcher', () => {
     });
 
     it('should throw after max retries', async () => {
-      mockedAxios.get.mockRejectedValue(new Error('Network error'));
+      const networkError = {
+        message: 'Network error',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        request: {}, // Simulate request error with no response
+      };
 
-      await expect(fetcher.fetch(mockSource)).rejects.toThrow(DocumentationError);
-      expect(mockedAxios.get).toHaveBeenCalledTimes(2); // maxRetries is 2
+      mockedAxios.get
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValue(networkError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Initial attempt + 2 retries
     });
 
     it('should respect concurrent request limit', async () => {
@@ -86,6 +104,237 @@ describe('DocumentationFetcher', () => {
 
       expect(results).toHaveLength(3);
       expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('Retry Mechanism', () => {
+    it('should retry failed requests', async () => {
+      const networkError = {
+        message: 'Network error',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+      };
+
+      const mockResponse = {
+        data: '<html><body>Success after retry</body></html>',
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(mockResponse);
+
+      const result = await fetcher.fetch(mockSource);
+
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+      expect(result.content).toBe(mockResponse.data);
+      expect(result.statusCode).toBe(200);
+    });
+
+    it('should throw after max retries', async () => {
+      const networkError = {
+        message: 'Network error',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValue(networkError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Initial + 2 retries
+    });
+  });
+
+  describe('Concurrency Control', () => {
+    it('should respect maxConcurrent limit', async () => {
+      const sources = [
+        { ...mockSource, id: '1' },
+        { ...mockSource, id: '2' },
+        { ...mockSource, id: '3' },
+        { ...mockSource, id: '4' },
+      ];
+
+      const mockResponse = {
+        data: '<html><body>Test</body></html>',
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      };
+
+      mockedAxios.get.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(mockResponse), 100)),
+      );
+
+      const startTime = Date.now();
+      await Promise.all(sources.map((source) => fetcher.fetch(source)));
+      const duration = Date.now() - startTime;
+
+      // With maxConcurrent=2, it should take at least 200ms to process 4 requests
+      expect(duration).toBeGreaterThanOrEqual(200);
+    });
+  });
+
+  describe('Error Response Handling', () => {
+    it('should handle 404 responses', async () => {
+      const mockResponse = {
+        data: 'Not Found',
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'content-type': 'text/html' },
+      };
+
+      mockedAxios.get.mockRejectedValue({
+        response: mockResponse,
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        message: 'Request failed with status code 404',
+      });
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1); // Should not retry on 404
+    });
+
+    it('should handle 404 responses from direct axios response', async () => {
+      const mockResponse = {
+        data: 'Not Found',
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'content-type': 'text/html' },
+      };
+
+      mockedAxios.get.mockRejectedValue({
+        response: mockResponse,
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        message: 'Request failed with status code 404',
+      });
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1); // Should not retry on 404
+    });
+
+    it('should handle other 4xx responses', async () => {
+      const mockResponse = {
+        data: 'Unauthorized',
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: { 'content-type': 'text/html' },
+      };
+
+      const error = {
+        response: mockResponse,
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        message: 'Request failed with status code 401',
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce(error)
+        .mockRejectedValue(error);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Should retry on non-404 errors
+    });
+
+    it('should handle network errors without response', async () => {
+      const networkError = {
+        message: 'Network Error',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        request: {}, // Simulate request error with no response
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValue(networkError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle 500 responses', async () => {
+      const mockResponse = {
+        data: 'Server Error',
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: { 'content-type': 'text/html' },
+      };
+
+      const error = {
+        response: mockResponse,
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        message: 'Request failed with status code 500',
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce(error)
+        .mockRejectedValue(error);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Should retry on 500
+    });
+  });
+
+  describe('Timeout Handling', () => {
+    it('should timeout long requests', async () => {
+      const timeoutError = {
+        message: 'timeout of 1000ms exceeded',
+        name: 'TimeoutError',
+        isAxiosError: true,
+        code: 'ECONNABORTED',
+        config: { url: mockSource.location },
+      };
+
+      mockedAxios.get.mockRejectedValue(timeoutError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle timeout errors gracefully', async () => {
+      const timeoutError = {
+        message: 'timeout of 1000ms exceeded',
+        name: 'TimeoutError',
+        isAxiosError: true,
+        code: 'ECONNABORTED',
+        config: { url: mockSource.location },
+        request: {}, // Simulate request error with no response
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(timeoutError)
+        .mockRejectedValueOnce(timeoutError)
+        .mockRejectedValue(timeoutError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Should still retry on timeout
+    });
+
+    it('should handle ECONNABORTED errors', async () => {
+      const abortError = {
+        message: 'Connection aborted',
+        code: 'ECONNABORTED',
+        isAxiosError: true,
+        config: { url: mockSource.location },
+        request: {}, // Simulate request error with no response
+      };
+
+      mockedAxios.get
+        .mockRejectedValueOnce(abortError)
+        .mockRejectedValueOnce(abortError)
+        .mockRejectedValue(abortError);
+
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow(AppError);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+      await expect(fetcher.fetch(mockSource)).rejects.toThrow('Request timed out');
     });
   });
 
@@ -147,7 +396,7 @@ describe('DocumentationFetcher', () => {
         timestamp: new Date(),
       };
 
-      expect(() => fetcher.validateContent(result)).toThrow(DocumentationError);
+      expect(() => fetcher.validateContent(result)).toThrow(AppError);
       expect(() => fetcher.validateContent(result)).toThrow('Empty content received');
     });
 
@@ -160,7 +409,7 @@ describe('DocumentationFetcher', () => {
         timestamp: new Date(),
       };
 
-      expect(() => fetcher.validateContent(result)).toThrow(DocumentationError);
+      expect(() => fetcher.validateContent(result)).toThrow(AppError);
       expect(() => fetcher.validateContent(result)).toThrow('Unexpected status code: 404');
     });
   });
