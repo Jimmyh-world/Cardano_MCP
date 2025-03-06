@@ -28,12 +28,13 @@ The Cardano Model Context Protocol (MCP) Server is a specialized gateway that si
 ```
 src/
 ├── server/           # MCP Server implementation
+│   └── mcpServer.ts  # CardanoMcpServer class
 ├── knowledge/        # Documentation and knowledge base
-│   ├── providers/   # API provider documentation
-│   ├── frontend/    # Frontend integration guides
-│   └── contracts/   # Smart contract resources
-├── tools/           # Development tools and utilities
-└── templates/       # Code templates and patterns
+│   └── processors/   # Documentation parser and fetcher
+├── types/            # Type definitions
+├── tools/            # Development tools and utilities
+├── prompts/          # Prompt templates and configurations
+└── index.mcp.ts      # MCP server entry point
 ```
 
 ## Technology Stack
@@ -62,17 +63,30 @@ src/
 ### Installation
 
 ```bash
+# Install dependencies
 npm install
+
+# Build the project
 npm run build
-npm start
+
+# Start the MCP server with stdio transport
+npm run start:mcp
+
+# Start the MCP server with SSE transport
+npm run start:mcp:sse
 ```
 
 ### Testing
 
 ```bash
-npm test                 # Run all tests
-npm run test:watch      # Run tests in watch mode
-npm run test:coverage   # Run tests with coverage
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ## Usage Examples
@@ -81,19 +95,22 @@ npm run test:coverage   # Run tests with coverage
 
 ```typescript
 // Access Blockfrost API documentation
-const docs = await server.resource('docs://blockfrost/api');
+const docs = await client.readResource('docs://blockfrost/api');
 
 // Get smart contract security patterns
-const patterns = await server.resource('docs://cardano/contracts/security');
+const patterns = await client.readResource('docs://cardano/contracts/security');
 ```
 
 ### Wallet Integration
 
 ```typescript
 // Generate wallet connection code
-const connector = await server.tool('generate-wallet-connector').execute({
-  walletType: 'nami',
-  network: 'testnet',
+const result = await client.callTool({
+  name: 'generate-wallet-connector',
+  arguments: {
+    walletType: 'nami',
+    network: 'testnet',
+  },
 });
 ```
 
@@ -101,14 +118,17 @@ const connector = await server.tool('generate-wallet-connector').execute({
 
 ```typescript
 // Validate smart contract security
-const validation = await server.tool('validate-contract').execute({
-  code: contractCode,
+const result = await client.callTool({
+  name: 'validate-contract',
+  arguments: {
+    code: contractCode,
+  },
 });
 ```
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](docs/development/contributing.md) for details on our code of conduct and the process for submitting pull requests.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## Testing
 
