@@ -185,3 +185,8 @@ export interface McpResponse {
     total: number;
   };
 }
+
+export interface ComplexityRequest {
+  prompt?: string;
+  messages?: Array<{ content: string }>;
+}

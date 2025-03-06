@@ -2,7 +2,7 @@ import {
   DocumentationParser,
   ParsedSection,
 } from '../../../../src/knowledge/processors/documentationParser';
-import { DocumentationError, DocumentationErrorType } from '../../../../src/types/documentation';
+import { DocumentationError } from '../../../../src/types/documentation';
 
 describe('DocumentationParser', () => {
   let parser: DocumentationParser;

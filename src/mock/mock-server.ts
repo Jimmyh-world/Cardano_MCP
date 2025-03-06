@@ -1,6 +1,6 @@
 import express from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
-import { McpResponse, PromptContext } from '../types';
+import { McpResponse } from '../types';
 
 const app = express();
 const port = 3000;

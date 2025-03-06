@@ -1,4 +1,8 @@
-import { DocumentationSource, DocumentationChunk, DocumentationSearchResult } from './documentation';
+import {
+  DocumentationSource,
+  DocumentationChunk,
+  DocumentationSearchResult,
+} from './documentation';
 
 /**
  * Types of knowledge sources
@@ -7,7 +11,7 @@ export enum KnowledgeSourceType {
   DOCUMENTATION = 'documentation',
   REPOSITORY = 'repository',
   API = 'api',
-  EXAMPLE = 'example'
+  EXAMPLE = 'example',
 }
 
 /**
@@ -99,4 +103,9 @@ export interface KnowledgeBaseStatus {
   updating: boolean;
   /** Any error messages */
   errors: string[];
-} 
+}
+
+export interface KnowledgeBase {
+  sources: DocumentationSource[];
+  chunks: DocumentationChunk[];
+}

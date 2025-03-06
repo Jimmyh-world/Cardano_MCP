@@ -2,125 +2,176 @@
 
 ## Core Principles
 
-- Follow KISS (Keep It Simple, Stupid) principle
-- Prioritize functionality and security over perfect code
-- Make deliberate decisions about technical debt
-- Document decisions and rationales
+- Test-Driven Development (TDD)
+- KISS (Keep It Simple, Stupid)
+- DRY (Don't Repeat Yourself)
+- Security First
+- Documentation Driven
+
+## Test-Driven Development Process
+
+### 1. Write the Test First
+
+```typescript
+describe('Documentation Resource', () => {
+  it('should fetch Blockfrost API documentation', async () => {
+    const result = await server.resource('docs://blockfrost/api').fetch();
+    expect(result.contents).toBeDefined();
+    expect(result.contents[0].text).toContain('Blockfrost');
+  });
+});
+```
+
+### 2. Run the Test (Should Fail)
+
+- Ensure the test fails for the expected reason
+- Verify test requirements are clear
+
+### 3. Write the Implementation
+
+```typescript
+server.resource('blockfrost-docs', 'docs://blockfrost/{section}', async (uri, { section }) => {
+  // Implementation here
+});
+```
+
+### 4. Run the Test (Should Pass)
+
+- Verify implementation meets requirements
+- Check for edge cases
+
+### 5. Refactor
+
+- Improve code quality
+- Maintain test coverage
+- Document changes
 
 ## Priority Levels
 
-### P0 - Critical (Must Fix Immediately)
+### P0 - Critical (Must Have Tests)
 
-- Runtime errors
-- Security vulnerabilities
-- Broken functionality
-- Failed tests
-- Blocking issues affecting other developers
+- Core server functionality
+- Security features
+- Data validation
+- API endpoints
 
-### P1 - Important (Should Fix Soon)
+### P1 - Important
 
-- Type errors that could lead to runtime issues
-- Missing error handling
-- Incomplete security checks
-- Performance issues affecting user experience
-- Documentation gaps in critical features
+- Documentation processing
+- Template generation
+- Error handling
+- Performance optimizations
 
-### P2 - Nice to Have (Fix When Convenient)
+### P2 - Nice to Have
 
-- Linting warnings
-- `any` type usage in TypeScript
-- Unused imports
-- Style inconsistencies
-- Minor documentation improvements
+- Additional features
+- UI improvements
+- Documentation updates
 
-## Handling Strategy
+## Code Organization
 
-### For P0 Issues
+### Directory Structure
 
-```typescript
-// Example of handling critical issues
-try {
-  // Critical functionality
-} catch (error) {
-  // Proper error handling
-  logger.error('Critical error:', error);
-  // Appropriate recovery or graceful degradation
-}
+```
+src/
+├── server/           # MCP Server implementation
+├── knowledge/        # Documentation and knowledge base
+├── tools/           # Development tools
+└── templates/       # Code templates
+
+tests/
+├── unit/            # Unit tests
+├── integration/     # Integration tests
+└── helpers/         # Test helpers
 ```
 
-- Fix immediately
-- Add tests to prevent regression
-- Document the fix
-- Create post-mortem if necessary
-- Update relevant documentation
+### File Naming
 
-### For P1 Issues
+- `*.test.ts` for test files
+- `*.ts` for implementation files
+- Clear, descriptive names
 
-```typescript
-// TODO: [TICKET-123] Improve type safety in authentication flow
-// @ts-expect-error Temporary solution until proper types are implemented
-function authenticate(user: any) {
-  // Current implementation
-}
-```
+## Testing Standards
 
-- Create detailed tickets
-- Fix in the next planned refactor
-- Add TODO comments with ticket references
-- Document in technical debt registry
+### Unit Tests
 
-### For P2 Issues
+- One test file per implementation file
+- Clear test descriptions
+- Proper setup and teardown
+- Mock external dependencies
 
-```typescript
-// Technical Debt Item: Unused import cleanup needed
-// Priority: P2
-// Created: [Date]
-// Ticket: TECH-456
-// @ts-ignore
-import { unusedUtil } from './utils';
-```
+### Integration Tests
 
-- Use appropriate ignore comments with explanations
-- Track in technical debt document
-- Batch fix during cleanup sprints
+- Test complete workflows
+- Verify component interaction
+- Test error scenarios
 
-## Decision Framework
+### Coverage Requirements
 
-Before fixing any issue, ask:
+- Minimum 90% overall coverage
+- 100% coverage for critical paths
+- Document any exclusions
 
-1. Is it affecting functionality?
-2. Is it a security concern?
-3. Is it blocking other development?
-4. What's the cost/benefit of fixing it now vs. later?
+## Documentation Requirements
 
-## Documentation Template
+### Code Documentation
 
-```markdown
-## Technical Debt Item
+- JSDoc for public APIs
+- Clear function descriptions
+- Type documentation
+- Usage examples
 
-### Description
+### Feature Documentation
 
-Brief description of the issue
+- Purpose and goals
+- Implementation details
+- Test coverage
+- Usage examples
 
-### Priority
+## Review Process
 
-P[0-2]
+### Pull Request Requirements
 
-### Created
+- All tests passing
+- Meeting coverage requirements
+- Documentation updated
+- Code review completed
 
-[Date]
+### Review Checklist
 
-### Ticket
+- [ ] Tests written first
+- [ ] Implementation follows tests
+- [ ] Coverage requirements met
+- [ ] Documentation updated
+- [ ] Code follows KISS principle
+- [ ] Security considerations addressed
 
-[Link or ID]
+## Security Considerations
 
-### Location
+### Code Security
 
-[File path and line numbers]
+- Input validation
+- Error handling
+- Secure defaults
+- Audit logging
 
-### Rationale
+### Testing Security
 
-Why we're deferring this fix
+- Security test cases
+- Edge case handling
+- Error scenarios
+- Vulnerability checks
+
+## Maintenance
+
+This document should be:
+
+- Updated with each major change
+- Reviewed quarterly
+- Used in code reviews
+- Referenced in pull requests
+
+Remember: The goal is to maintain high-quality, secure, and maintainable code through consistent test-driven development practices.
 
 ### Acceptance Criteria
 
@@ -129,7 +180,8 @@ What needs to be done to consider this resolved
 ### Notes
 
 Any additional context or considerations
-```
+
+````
 
 ## Implementation Example
 
@@ -142,7 +194,7 @@ Any additional context or considerations
 function processData(data: any) {
   // Implementation
 }
-```
+````
 
 ## Review Process
 

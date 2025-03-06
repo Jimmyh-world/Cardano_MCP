@@ -1,10 +1,6 @@
 import axios from 'axios';
 import { DocumentationFetcher } from '../../../../src/knowledge/processors/documentationFetcher';
-import {
-  DocumentationSource,
-  DocumentationError,
-  DocumentationErrorType,
-} from '../../../../src/types/documentation';
+import { DocumentationError, DocumentationSource } from '../../../../src/types/documentation';
 
 // Mock axios
 jest.mock('axios');
@@ -16,6 +12,10 @@ describe('DocumentationFetcher', () => {
     id: 'test-source',
     location: 'https://test.com/docs',
     type: 'web',
+    name: 'Test Documentation',
+    url: 'https://test.com/docs',
+    content: '',
+    metadata: {},
   };
 
   beforeEach(() => {
