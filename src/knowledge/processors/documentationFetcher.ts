@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 import { DocumentationSource } from '../../types/documentation';
-import { ErrorFactory, ErrorHandler } from '../../utils/errors';
-import { ErrorCode } from '../../utils/errors';
+import {
+  AppError,
+  ErrorFactory,
+  ErrorHandler,
+  NetworkErrorFactory,
+  RetryHandler,
+  RetryConfig,
+} from '../../utils/errors/index';
 
 /**
  * Configuration for the documentation fetcher
@@ -66,27 +72,36 @@ export class DocumentationFetcher {
    */
   public async fetch(source: DocumentationSource): Promise<FetchResult> {
     try {
-      // Wait if we've hit the concurrent request limit
-      while (this.activeRequests >= this.config.maxConcurrent) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 100));
-      }
-
+      await this.waitForConcurrencySlot();
       this.activeRequests++;
 
-      const response = await ErrorHandler.withRetry(
-        async () => {
+      // Create retry configuration
+      const retryConfig: Partial<RetryConfig> = {
+        maxRetries: this.config.maxRetries,
+        retryDelay: this.config.retryDelay,
+        shouldRetry: (error: AppError) => {
+          // Don't retry 404s
+          if (error.code === 'NOT_FOUND') {
+            return false;
+          }
+          // Retry network and server errors
+          return ['NETWORK_ERROR', 'TIMEOUT', 'SERVER_ERROR'].includes(error.code);
+        },
+      };
+
+      const response = await RetryHandler.withRetry(async () => {
+        try {
           return await axios.get(source.location, {
             timeout: this.config.timeout,
             headers: {
               'User-Agent': this.config.userAgent,
             },
           });
-        },
-        {
-          maxRetries: this.config.maxRetries,
-          retryDelay: this.config.retryDelay,
-        },
-      );
+        } catch (error) {
+          // Convert Axios errors to AppError before they hit the retry handler
+          throw NetworkErrorFactory.fromAxiosError(error as any, { source });
+        }
+      }, retryConfig);
 
       const result = {
         content: response.data,
@@ -99,9 +114,23 @@ export class DocumentationFetcher {
       this.validateContent(result);
       return result;
     } catch (error) {
-      throw ErrorHandler.process(error, { source });
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw ErrorFactory.documentationFetchError('Failed to fetch documentation', error as Error, {
+        source,
+      });
     } finally {
       this.activeRequests--;
+    }
+  }
+
+  /**
+   * Waits until a concurrency slot is available
+   */
+  private async waitForConcurrencySlot(): Promise<void> {
+    while (this.activeRequests >= this.config.maxConcurrent) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
   }
 
@@ -109,9 +138,14 @@ export class DocumentationFetcher {
    * Extracts main content from HTML
    * @param html Raw HTML content
    * @returns Cleaned main content
+   * @throws AppError if parsing fails
    */
   public extractMainContent(html: string): string {
     try {
+      if (!html) {
+        throw new Error('HTML content is null or empty');
+      }
+
       const dom = new JSDOM(html);
       const { document } = dom.window;
 
@@ -129,11 +163,9 @@ export class DocumentationFetcher {
       // Fallback to body content
       return document.body.textContent?.trim() || '';
     } catch (error) {
-      throw ErrorFactory.documentationParseError(
-        'Failed to parse HTML content',
-        error as Error,
-        { html: html.substring(0, 100) + '...' }, // Include first 100 chars for context
-      );
+      throw ErrorFactory.documentationParseError('Failed to parse HTML content', error as Error, {
+        html: html?.substring?.(0, 100) + '...' || 'null or undefined',
+      });
     }
   }
 

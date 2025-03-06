@@ -1,11 +1,8 @@
 import { JSDOM } from 'jsdom';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
-import {
-  DocumentationError,
-  DocumentationErrorType,
-  DocumentationMetadata,
-} from '../../types/documentation';
+import { DocumentationMetadata } from '../../types/documentation';
+import { AppError, ErrorFactory, ErrorCode } from '../../utils/errors/index';
 
 /**
  * Configuration for the documentation parser
@@ -179,17 +176,19 @@ export class DocumentationParser {
 
       // Validate tag name
       if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(tagName)) {
-        throw new DocumentationError(
-          DocumentationErrorType.PARSE_ERROR,
+        throw ErrorFactory.documentationParseError(
           `Invalid HTML: malformed tag syntax "${tagName}"`,
+          undefined,
+          { tag: tagName },
         );
       }
 
       // Validate tag is supported
       if (!this.allowedTags.includes(normalizedTagName)) {
-        throw new DocumentationError(
-          DocumentationErrorType.PARSE_ERROR,
+        throw ErrorFactory.documentationParseError(
           `Invalid HTML: unsupported tag "${tagName}"`,
+          undefined,
+          { tag: tagName },
         );
       }
 
@@ -205,9 +204,10 @@ export class DocumentationParser {
           if (this.config.lenientParsing) {
             continue;
           }
-          throw new DocumentationError(
-            DocumentationErrorType.PARSE_ERROR,
+          throw ErrorFactory.documentationParseError(
             'Invalid HTML: unmatched closing tag',
+            undefined,
+            { tag: tagName, lastTag },
           );
         }
       } else {
@@ -217,9 +217,10 @@ export class DocumentationParser {
 
     // Check for unclosed tags
     if (tagStack.length > 0 && !this.config.lenientParsing) {
-      throw new DocumentationError(
-        DocumentationErrorType.PARSE_ERROR,
+      throw ErrorFactory.documentationParseError(
         'Invalid HTML: unclosed tags detected',
+        undefined,
+        { unclosedTags: tagStack },
       );
     }
   }
@@ -228,7 +229,7 @@ export class DocumentationParser {
    * Parses HTML content into sections
    * @param html Raw HTML content
    * @returns Array of parsed sections
-   * @throws DocumentationError if parsing fails
+   * @throws AppError if parsing fails
    */
   public parseHtml(html: string): ParsedSection[] {
     try {
@@ -238,10 +239,9 @@ export class DocumentationParser {
 
       // Basic HTML validation
       if (!html.includes('<')) {
-        throw new DocumentationError(
-          DocumentationErrorType.PARSE_ERROR,
-          'Invalid HTML: no tags found',
-        );
+        throw ErrorFactory.documentationParseError('Invalid HTML: no tags found', undefined, {
+          html: html.substring(0, 100),
+        });
       }
 
       // Validate HTML syntax before processing
@@ -254,9 +254,10 @@ export class DocumentationParser {
 
       // Check for parsing errors
       if (!document.documentElement || !document.body) {
-        throw new DocumentationError(
-          DocumentationErrorType.PARSE_ERROR,
+        throw ErrorFactory.documentationParseError(
           'Invalid HTML: malformed document structure',
+          undefined,
+          { html: html.substring(0, 100) },
         );
       }
 
@@ -284,14 +285,12 @@ export class DocumentationParser {
 
       return sections;
     } catch (error) {
-      if (error instanceof DocumentationError) {
+      if (error instanceof AppError) {
         throw error;
       }
-      throw new DocumentationError(
-        DocumentationErrorType.PARSE_ERROR,
-        'Failed to parse HTML content',
-        error,
-      );
+      throw ErrorFactory.documentationParseError('Failed to parse HTML content', error as Error, {
+        html: html.substring(0, 100),
+      });
     }
   }
 
@@ -358,7 +357,7 @@ export class DocumentationParser {
    * Parses Markdown content into sections
    * @param markdown Raw Markdown content
    * @returns Array of parsed sections
-   * @throws DocumentationError if parsing fails
+   * @throws AppError if parsing fails
    */
   public async parseMarkdown(markdown: string): Promise<ParsedSection[]> {
     try {
@@ -368,9 +367,10 @@ export class DocumentationParser {
 
       // Validate markdown structure
       if (!markdown.match(/^#+ /m)) {
-        throw new DocumentationError(
-          DocumentationErrorType.PARSE_ERROR,
+        throw ErrorFactory.documentationParseError(
           'Invalid Markdown: no headings found',
+          undefined,
+          { markdown: markdown.substring(0, 100) },
         );
       }
 
@@ -378,13 +378,13 @@ export class DocumentationParser {
       const html = await marked(markdown);
       return this.parseHtml(html);
     } catch (error) {
-      if (error instanceof DocumentationError) {
+      if (error instanceof AppError) {
         throw error;
       }
-      throw new DocumentationError(
-        DocumentationErrorType.PARSE_ERROR,
+      throw ErrorFactory.documentationParseError(
         'Failed to parse Markdown content',
-        error,
+        error as Error,
+        { markdown: markdown.substring(0, 100) },
       );
     }
   }
