@@ -153,3 +153,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Model Context Protocol team for the TypeScript SDK
 - Cardano community for documentation and resources
 - Contributors and maintainers
+
+## Modules
+
+### Repositories Module
+
+A new Repositories module has been added to provide functionality for indexing, querying, and managing GitHub repositories. This module enables the retrieval and processing of repository content, making it available for context-aware operations.
+
+Key features:
+
+- Fetch and index GitHub repositories
+- Process README files for structured content
+- Maintain a registry of available repositories
+- Store repository content for efficient access
+
+For detailed information, see the [repositories documentation](docs/repositories/README.md).
+
+Additional documentation:
+
+- [Integration Guide](docs/repositories/INTEGRATION.md)
+- [Testing Guide](docs/repositories/TESTING.md)
+- [Test Configuration](docs/repositories/TEST_CONFIGURATION.md)
