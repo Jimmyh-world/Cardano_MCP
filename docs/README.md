@@ -16,6 +16,7 @@ This directory contains all documentation for the Cardano Multi-Chain Protocol (
   - `/llm-prompts/` - LLM prompts system documentation
   - `/tools/` - Tools and utilities documentation
   - `/knowledge-base/` - Knowledge base system documentation
+  - `/error-handling/` - Error handling system documentation
 
 ## Quick Links
 
@@ -23,6 +24,7 @@ This directory contains all documentation for the Cardano Multi-Chain Protocol (
 - [Technical Debt Registry](development/technical-debt.md)
 - [API Documentation](api/README.md)
 - [Architecture Overview](architecture/README.md)
+- [Error Handling System](features/error-handling/README.md)
 
 ## Maintenance
 

@@ -32,6 +32,12 @@ src/
 ├── knowledge/        # Documentation and knowledge base
 │   └── processors/   # Documentation parser and fetcher
 ├── types/            # Type definitions
+├── utils/            # Utility functions
+│   └── errors/       # Error handling system
+│       ├── core/     # Core error classes
+│       ├── factories/# Error factory classes
+│       ├── handlers/ # Error handlers (retry, etc.)
+│       └── types/    # Error type definitions
 ├── tools/            # Development tools and utilities
 ├── prompts/          # Prompt templates and configurations
 └── index.mcp.ts      # MCP server entry point
@@ -50,6 +56,7 @@ src/
 - KISS (Keep It Simple, Stupid) principle
 - DRY (Don't Repeat Yourself) principle
 - Security-first mindset
+- Comprehensive error handling
 
 ## Getting Started
 

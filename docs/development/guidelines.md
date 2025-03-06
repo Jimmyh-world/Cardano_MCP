@@ -162,6 +162,65 @@ tests/
 - Error scenarios
 - Vulnerability checks
 
+## Error Handling Standards
+
+### Error Hierarchy
+
+- Use the `AppError` base class for all application errors
+- Group errors by domain (network, validation, etc.)
+- Include appropriate context data with errors
+
+```typescript
+// Example of throwing an application error
+throw ErrorFactory.documentationFetchError('Failed to fetch documentation', originalError, {
+  url,
+  attempt,
+  maxRetries,
+});
+```
+
+### Error Factories
+
+- Use factory methods to create domain-specific errors
+- Include meaningful error messages
+- Attach original errors for debugging
+- Add relevant context data
+
+```typescript
+// Example of an error factory method
+static documentationValidationError(message: string, context?: Record<string, any>): AppError {
+  return new AppError(
+    message,
+    ErrorCode.DOC_VALIDATION_ERROR,
+    400,
+    undefined,
+    context
+  );
+}
+```
+
+### Retry Mechanism
+
+- Use the `RetryHandler` for operations that may fail temporarily
+- Configure appropriate retry counts and delays
+- Implement custom retry logic when needed
+
+```typescript
+// Example of retry handler usage
+const result = await RetryHandler.withRetry(async () => axios.get(url), {
+  maxRetries: 3,
+  retryDelay: 1000,
+  shouldRetry: (error) => error.code === ErrorCode.NETWORK_ERROR,
+});
+```
+
+### Error Testing
+
+- Test both successful and error scenarios
+- Mock error conditions for comprehensive testing
+- Verify error properties and context data
+- Test retry logic with simulated failures
+
 ## Maintenance
 
 This document should be:
@@ -181,8 +240,6 @@ What needs to be done to consider this resolved
 
 Any additional context or considerations
 
-````
-
 ## Implementation Example
 
 ```typescript
@@ -194,7 +251,7 @@ Any additional context or considerations
 function processData(data: any) {
   // Implementation
 }
-````
+```
 
 ## Review Process
 
