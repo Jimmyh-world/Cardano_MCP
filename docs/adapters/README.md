@@ -4,18 +4,16 @@ The Site Adapter System provides a modular approach to extracting content from v
 
 ## Overview
 
-Modern websites often rely heavily on JavaScript for content rendering, making traditional HTTP requests insufficient for content extraction. The Site Adapter System addresses this challenge by:
+Many documentation sites in the Cardano ecosystem use JavaScript frameworks, which means the HTML source code retrieved via HTTP requests is often not sufficient for content extraction. The Site Adapter System addresses this challenge by:
 
 1. Providing a unified interface for website content extraction
-2. Supporting both traditional HTTP requests and JavaScript rendering through Puppeteer
-3. Enabling site-specific extraction logic for optimal results
+2. Supporting both JavaScript-rendered and static content
+3. Implementing site-specific extraction logic when needed
 4. Standardizing the output format for integration with the knowledge processing pipeline
 
 ## Architecture
 
 The adapter system consists of the following components:
-
-### Core Components
 
 - **SiteAdapter Interface**: Defines the contract that all site adapters must implement
 - **SiteContent Interface**: Standardizes the structure of extracted content
@@ -24,63 +22,86 @@ The adapter system consists of the following components:
 ### Site-Specific Adapters
 
 - **GeniusYieldAdapter**: Adapter for the Genius Yield website and documentation
+- **CardanoDocsAdapter**: Adapter for the Cardano documentation site
 - _(Future adapters will be implemented for other Cardano ecosystem sites)_
 
-### Key Features
+## Web Scraper Core Capabilities
 
-- **JavaScript Rendering**: Uses Puppeteer for proper rendering of modern web applications
-- **Content Segmentation**: Extracts structured content based on headings and sections
-- **Metadata Extraction**: Automatically extracts metadata such as title, description, author, and tags
-- **Site Structure Mapping**: Maps the navigation structure of websites for comprehensive crawling
-- **Code Block Extraction**: Identifies and extracts code samples for improved knowledge representation
+Our web scraper system has been enhanced with the following capabilities:
 
-## Usage
+1. **Hierarchical Exploration**: Systematically crawls websites starting from the homepage, following links down to deeper sections.
+2. **JavaScript Rendering**: Uses Puppeteer for JavaScript rendering of modern web applications.
+3. **Content Extraction**: Intelligently extracts main content, code blocks, and metadata from pages.
+4. **Repository Integration**: Identifies and explores related GitHub repositories for additional knowledge extraction.
+5. **Error Handling**: Robust error handling for timeouts, navigation failures, and malformed content.
+6. **Rate Limiting**: Respects website rate limits to prevent overloading sites during scraping.
+7. **Configurable Depth**: Allows setting maximum depth for exploration to prevent infinite crawling.
 
-### Basic Usage
+## Step-Down Exploration Algorithm
+
+The web scraper implements a hierarchical step-down approach that:
+
+1. Begins at the main site URL (entry point)
+2. Discovers and catalogs links on each page
+3. Follows links in a breadth-first search pattern
+4. Captures the site's hierarchical structure
+5. Extracts detailed content from each page
+6. Identifies and explores referenced GitHub repositories
+
+## Using an Adapter
+
+Here's how to use the adapter system to extract content from a website:
 
 ```typescript
 import { GeniusYieldAdapter } from '../adapters/GeniusYieldAdapter';
 
 // Create an adapter instance
 const adapter = new GeniusYieldAdapter({
-  useJsRendering: true, // Enable JavaScript rendering
-  timeout: 30000, // 30-second timeout
+  useJsRendering: true,
+  timeout: 30000,
 });
 
-// Check if a URL can be handled
+// Check if the adapter can handle a specific URL
 if (adapter.canHandle('https://docs.geniusyield.co/')) {
-  // Fetch content
+  // Fetch content from the URL
   const content = await adapter.fetchContent('https://docs.geniusyield.co/');
 
-  // Access the extracted content
-  console.log(`Title: ${content.metadata.title}`);
-  console.log(`Sections: ${content.sections.length}`);
+  // Access extracted content
+  console.log('Title:', content.metadata.title);
+  console.log('Sections:', content.sections.length);
 
-  // Process the sections
-  for (const section of content.sections) {
+  // Process sections
+  content.sections.forEach((section) => {
     console.log(`Section: ${section.title}`);
     console.log(`Content: ${section.content.substring(0, 100)}...`);
-    console.log(`Code blocks: ${section.codeBlocks.length}`);
-  }
+  });
 }
 ```
 
-### Advanced Usage
+You can also explore the entire site structure:
 
 ```typescript
-// Fetch site structure for crawling
+// Get the site structure
 const structure = await adapter.getSiteStructure();
 
-// The structure contains main sections and sub-sections
-for (const url of structure.mainSections) {
-  console.log(`Main section: ${url}`);
+// Access pages and their relationships
+console.log('Total pages:', structure.pages.length);
+console.log('Main sections:', structure.mainSections.length);
+```
 
-  // Access sub-sections for each main section
-  const subsections = structure.subSections[url] || [];
-  for (const subUrl of subsections) {
-    console.log(`  - Subsection: ${subUrl}`);
-  }
-}
+## Enhanced Exploration Capabilities
+
+The adapter system now includes advanced exploration capabilities:
+
+```typescript
+// Explore site with a maximum depth of 2 levels
+const siteMap = await adapter.exploreSite('https://www.geniusyield.co/', 2);
+
+// Get all discovered repositories
+const repositories = await adapter.getRepositories();
+
+// Explore a specific repository
+const repoContent = await adapter.exploreRepository('geniusyield', 'smart-order-router');
 ```
 
 ## Implementing New Adapters
@@ -99,32 +120,27 @@ export class MySiteAdapter implements SiteAdapter {
   private config: MySiteAdapterConfig;
 
   constructor(config: Partial<MySiteAdapterConfig> = {}) {
-    // Initialize configuration
+    this.config = {
+      baseUrl: 'https://example.com',
+      useJsRendering: true,
+      timeout: 30000,
+      ...config,
+    };
   }
 
   public getSiteName(): string {
-    return 'My Site Name';
-  }
-
-  public getBaseUrl(): string {
-    return 'https://mysite.com';
+    return 'My Site';
   }
 
   public canHandle(url: string): boolean {
-    // Check if this URL matches the site pattern
+    return url.includes(this.config.baseUrl);
   }
 
   public async fetchContent(url: string): Promise<SiteContent> {
-    // Fetch content using appropriate method
+    // Implementation details...
   }
 
-  public async extractSections(html: string): Promise<ExtractedSection[]> {
-    // Implement site-specific section extraction
-  }
-
-  public async extractMetadata(html: string, url: string): Promise<SiteContent['metadata']> {
-    // Implement site-specific metadata extraction
-  }
+  // Additional methods for site-specific functionality
 }
 ```
 
@@ -134,26 +150,37 @@ The adapter system includes comprehensive tests to ensure proper functionality:
 
 - **Unit Tests**: Testing individual methods with mock data
 - **Integration Tests**: Testing adapters with real websites
-- **Example Scripts**: Demonstrating usage and validating output
 
 To run the GeniusYield adapter test:
 
 ```bash
+# Run the standalone test
 ./run-genius-yield-test.sh
 ```
 
-This will:
+This test script will:
 
-1. Compile the necessary TypeScript files
+1. Set up the necessary environment
 2. Run the adapter against the Genius Yield website
-3. Save extracted content to the `test-output/genius-yield` directory
+3. Save extracted content to `test-output/genius-yield`
 
 ## Future Enhancements
 
 The adapter system will continue to evolve with:
 
 - Additional adapters for more Cardano ecosystem sites
-- Performance optimizations for large-scale crawling
-- Improved content extraction with machine learning techniques
+- Enhanced content extraction for specialized documentation formats
 - Integration with the main knowledge pipeline
-- Content difference detection for efficient updates
+- Improved error handling and recovery strategies
+- Support for authentication-required content
+- Automatic schedule-based content updates
+
+## Contributing
+
+To contribute a new adapter:
+
+1. Create a new adapter class in `src/adapters`
+2. Implement the `SiteAdapter` interface
+3. Add unit and integration tests
+4. Create documentation in `docs/adapters`
+5. Submit a pull request with your changes

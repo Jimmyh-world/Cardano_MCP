@@ -1,143 +1,136 @@
 # Cardano MCP Documentation
 
-## Overview
+This directory contains the documentation for the Cardano Model Context Protocol (MCP) server project.
 
-This directory contains all documentation for the Cardano Multi-Chain Protocol (MCP) project, a specialized gateway that simplifies Cardano blockchain integration by providing access to documentation, tools, and best practices.
+## Document Organization
 
-## Directory Structure
+The documentation is organized into the following sections:
 
-- `/architecture/` - System architecture and design documents
-- `/api/` - API documentation and specifications
+- `/adapters/` - Documentation for site-specific adapters
+  - `README.md` - [Overview of the adapter system](adapters/README.md)
+  - `GeniusYield.md` - [GeniusYield adapter documentation](adapters/GeniusYield.md)
+- `/api/` - API reference and examples
+  - `README.md` - [API Overview](api/README.md)
+  - `ENDPOINTS.md` - [API Endpoints](api/ENDPOINTS.md)
+- `/architecture/` - System architecture documentation
+  - `README.md` - [Architecture Overview](architecture/README.md)
+  - `COMPONENTS.md` - [Component Architecture](architecture/COMPONENTS.md)
 - `/development/` - Development guidelines and processes
   - `guidelines.md` - Development standards and practices
-  - `technical-debt.md` - Technical debt tracking
   - `CI_CD.md` - CI/CD pipeline documentation
+  - `technical-debt.md` - Technical debt tracking
   - `contributing.md` - Contribution guidelines
 - `/features/` - Feature-specific documentation
-  - `/error-handling/` - [Error handling system](features/error-handling/README.md) (~93% test coverage)
-  - `/knowledge-module/` - [Documentation processing system](features/knowledge-module/README.md) (~92% test coverage)
-  - `/llm-prompts/` - [LLM prompts system](features/llm-prompts/README.md)
-  - `/tools/` - [Tools and utilities](features/tools/README.md)
-- `/repositories/` - [Repository module documentation](repositories/README.md) (>80% branch coverage)
+  - `/knowledge-module/` - Knowledge module documentation
+  - `/knowledge-base/` - Knowledge base documentation
+  - `ui-interface.md` - [UI Interface documentation](features/ui-interface.md)
+- `/repositories/` - Repository handling documentation
+  - `README.md` - [Repository module overview](repositories/README.md)
   - `INTEGRATION.md` - [Integration guide](repositories/INTEGRATION.md)
   - `TESTING.md` - [Testing guide](repositories/TESTING.md)
   - `TEST_CONFIGURATION.md` - [Test configuration guide](repositories/TEST_CONFIGURATION.md)
 - `/testing/` - Testing infrastructure documentation
   - `TEST_CATEGORIES.md` - [Test categories overview](testing/TEST_CATEGORIES.md)
   - `TEST_CONFIGURATION_FIXES.md` - [Test configuration improvements](testing/TEST_CONFIGURATION_FIXES.md)
+  - `TEST_DATABASE.md` - [Testing database documentation](testing/TEST_DATABASE.md)
 
-## Core Modules
+## Core Features
 
-### Server Module
-
-The MCP Server implementation provides the core functionality for exposing resources, tools, and prompts via the Model Context Protocol.
-
-**Key Features:**
-
-- CardanoMcpServer class with multiple transport support
-- Integration with knowledge and repository modules
-- 100% test coverage
-
-**Related Documentation:**
-
-- [Main README.md](../README.md) - Server usage examples
-- [Architecture Overview](architecture/README.md)
+The Cardano MCP project provides several core features:
 
 ### Knowledge Module
 
-The Knowledge module provides functionality for processing documentation from various sources.
+The knowledge module is responsible for:
 
-**Key Features:**
+- Fetching documentation from various sources
+- Parsing and processing the content
+- Extracting meaningful sections and metadata
+- Storing the knowledge for rapid retrieval
 
-- HTML validation and cleaning
-- Section extraction and metadata generation
-- Markdown processing
-- ~92.39% test coverage
+For more information, see the [Knowledge Module documentation](features/knowledge-module/README.md).
 
-**Related Documentation:**
+### Repository Integration
 
-- [Knowledge Module Overview](features/knowledge-module/README.md)
-- [Processors Architecture](features/knowledge-module/processors.md)
+The repository integration features:
 
-### Repositories Module
+- GitHub repository indexing and content extraction
+- README parsing and section extraction
+- Code example discovery and categorization
 
-The Repositories module enables indexing and querying GitHub repositories to make their content available through MCP.
+For more information, see:
 
-**Key Features:**
-
-- GitHub client for API interactions
-- Repository indexing and content processing
-- Structured storage and registry
-- > 80% branch coverage
-
-**Related Documentation:**
-
-- [Repositories Overview](repositories/README.md)
+- [Repository Module Overview](repositories/README.md)
 - [Integration Guide](repositories/INTEGRATION.md)
 - [Testing Guide](repositories/TESTING.md)
 
-### Error Handling System
+### UI Interface
 
-The Error Handling system provides standardized error handling throughout the application.
+The UI interface provides:
 
-**Key Features:**
+- Web-based interface for interacting with the MCP server
+- Knowledge visualization and exploration tools
+- Repository browsing and search capabilities
+- Documentation browsing and search
 
-- AppError base class
-- Specialized error factories
-- Retry mechanisms
-- ~93% test coverage
+For more information, see the [UI Interface documentation](features/ui-interface.md).
 
-**Related Documentation:**
+### Web Scraper System
 
-- [Error Handling System](features/error-handling/README.md)
+The web scraper system enables:
 
-## Testing Infrastructure
+- Extraction of content from JavaScript-rendered websites
+- Site-specific adapter implementation
+- Hierarchical site exploration
+- Content categorization and metadata extraction
+
+For more information, see the [Site Adapter System documentation](adapters/README.md).
+
+### Testing Infrastructure
 
 The project uses a modular testing approach with specialized configurations for different module types:
 
-- **Base Configuration**: [jest.base.config.js](../jest.base.config.js)
-- **Knowledge Tests**: [jest.knowledge.config.js](../jest.knowledge.config.js)
-- **Repository Tests**: [jest.repository.config.js](../jest.repository.config.js)
-- **Server Tests**: [jest.server.config.js](../jest.server.config.js)
-- **Error Tests**: [jest.errors.config.js](../jest.errors.config.js)
+- Unit testing with Jest
+- Integration testing with mock server
+- End-to-end testing of the complete system
+- Testing database for consistent test environments
 
 For detailed information about the testing infrastructure, see:
 
 - [TESTING.md](../TESTING.md) - Main testing guide
 - [Test Categories](testing/TEST_CATEGORIES.md) - Overview of test categories
 - [Test Configuration Fixes](testing/TEST_CONFIGURATION_FIXES.md) - Recent improvements
+- [Testing Database](testing/TEST_DATABASE.md) - Testing database documentation
 
 ## Quick Links
 
+- [Project README](../README.md) - Main project documentation
 - [Development Guidelines](development/guidelines.md)
-- [Technical Debt Registry](development/technical-debt.md)
-- [CI/CD Pipeline Documentation](development/CI_CD.md)
-- [API Documentation](api/README.md)
 - [Architecture Overview](architecture/README.md)
-- [CHANGELOG](../CHANGELOG.md) - Project version history
-- [CONTRIBUTING](../CONTRIBUTING.md) - Contribution guidelines
-- [SECURITY](../SECURITY.md) - Security policies and practices
+- [API Documentation](api/README.md)
+- [CI/CD Pipeline Documentation](development/CI_CD.md)
 
-## Upcoming Features
+## Contributing
 
-- **Context Assembly Module** (Next priority)
+See the [CONTRIBUTING](../CONTRIBUTING.md) - Contribution guidelines
 
-  - Multi-source context assembly
-  - Relevance ranking
-  - Response formatting
-  - Source attribution
+## License
 
-- **Documentation Update System**
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
-  - Automated documentation fetching
-  - Processing pipeline
-  - Knowledge base updates
+## Acknowledgements
 
-- **LLM System Prompts**
-  - Template creation
-  - Context-based generation
+- Input Output Global (IOG)
+- Cardano Foundation
+- The Cardano developer community
 
-## Maintenance
+## Documentation Standards
 
 This documentation is maintained according to the guidelines in [Development Guidelines](development/guidelines.md).
-Please ensure all documentation changes follow these standards.
+
+## Versioning
+
+The documentation follows the same versioning as the main project, using [Semantic Versioning](https://semver.org/).
+
+## Feedback
+
+For feedback on the documentation, please open an issue or submit a pull request.
