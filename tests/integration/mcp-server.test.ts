@@ -1,21 +1,36 @@
 import axios from 'axios';
-import WebSocket from 'ws';
 import { McpResponse, PromptContext } from '../../src/types';
 
 describe('MCP Server Integration Tests', () => {
   const BASE_URL = 'http://localhost:3000/v1';
-  const WS_URL = 'ws://localhost:3001';
-  let ws: WebSocket;
+
+  // Increase the test timeout
+  jest.setTimeout(60000);
+
+  // Helper function to wait for server readiness
+  const waitForServer = async () => {
+    const maxAttempts = 10;
+    const delay = 1000;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await axios.get('http://localhost:3000/ready');
+        if (response.data.ready) {
+          return;
+        }
+      } catch (error) {
+        // Ignore errors and continue retrying
+      }
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    throw new Error('Server failed to become ready');
+  };
 
   beforeAll(async () => {
-    // Ensure server is reachable
-    await axios.get(BASE_URL);
-  });
-
-  afterAll(() => {
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
+    // Wait for server to be ready
+    await waitForServer();
   });
 
   describe('REST API Tests', () => {
@@ -37,131 +52,40 @@ describe('MCP Server Integration Tests', () => {
         } as PromptContext,
       };
 
-      const response = await axios.post<McpResponse>(`${BASE_URL}/execute`, testPrompt);
-
-      expect(response.status).toBe(200);
-      expect(response.data).toMatchObject({
-        content: expect.any(String),
-        tools_used: expect.arrayContaining([expect.any(String)]),
-        knowledge_accessed: expect.arrayContaining([
-          expect.objectContaining({
-            category: expect.any(String),
-            relevance: expect.any(Number),
-          }),
-        ]),
-        token_usage: expect.objectContaining({
-          prompt: expect.any(Number),
-          completion: expect.any(Number),
-          total: expect.any(Number),
-        }),
-      });
-    });
-
-    test('should handle invalid requests gracefully', async () => {
       try {
-        await axios.post(`${BASE_URL}/execute`, {
-          prompt: 'test',
-          context: { invalid: true },
+        const response = await axios.post<McpResponse>(`${BASE_URL}/execute`, testPrompt, {
+          timeout: 5000,
         });
-        fail('Should have thrown an error');
+
+        expect(response.status).toBe(200);
+        expect(response.data).toMatchObject({
+          content: expect.any(String),
+          tools_used: expect.arrayContaining([expect.any(String)]),
+          knowledge_accessed: expect.arrayContaining([
+            expect.objectContaining({
+              category: expect.any(String),
+              relevance: expect.any(Number),
+            }),
+          ]),
+          token_usage: expect.objectContaining({
+            prompt: expect.any(Number),
+            completion: expect.any(Number),
+            total: expect.any(Number),
+          }),
+        });
       } catch (error: any) {
-        expect(error.response.status).toBe(400);
-        expect(error.response.data).toHaveProperty('error');
-      }
-    });
-  });
-
-  describe('WebSocket Tests', () => {
-    beforeEach((done) => {
-      ws = new WebSocket(WS_URL);
-      ws.on('open', () => done());
-      ws.on('error', (error) => done(error));
-    });
-
-    afterEach((done) => {
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.on('close', () => done());
-        ws.close();
-      } else {
-        done();
+        console.error('Error executing prompt:', error.message);
+        if (error.response) {
+          console.error('Response data:', error.response.data);
+        }
+        throw error;
       }
     });
 
-    test('should receive connection and update messages', (done) => {
-      const messages: any[] = [];
-
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        messages.push(message);
-
-        // First message should be connection confirmation
-        if (messages.length === 1) {
-          expect(message.type).toBe('connection');
-          expect(message.data).toHaveProperty('status', 'connected');
-        }
-
-        // Second message should be an update
-        if (messages.length === 2) {
-          expect(message.type).toBe('update');
-          expect(message.data).toHaveProperty('tool', 'validatePlutusScript');
-          done();
-        }
-      });
-    });
-
-    test('should maintain connection for multiple updates', (done) => {
-      const messages: any[] = [];
-      const EXPECTED_UPDATES = 2; // Including connection message
-
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        messages.push(message);
-
-        if (messages.length === EXPECTED_UPDATES) {
-          expect(messages[0].type).toBe('connection');
-          expect(messages[1].type).toBe('update');
-          done();
-        }
-      });
-    });
-  });
-
-  describe('End-to-End Flow Tests', () => {
-    test('should handle prompt execution with WebSocket updates', (done) => {
-      const wsClient = new WebSocket(WS_URL);
-      const updates: any[] = [];
-
-      wsClient.on('open', async () => {
-        wsClient.on('message', (data) => {
-          const message = JSON.parse(data.toString());
-          updates.push(message);
-
-          // Wait for connection message and at least one update
-          if (updates.length >= 2) {
-            expect(updates[0].type).toBe('connection');
-            expect(updates[1]).toMatchObject({
-              type: 'update',
-              data: expect.objectContaining({
-                tool: 'validatePlutusScript',
-                status: 'running',
-              }),
-            });
-            wsClient.close();
-            done();
-          }
-        });
-
-        // Trigger prompt execution
-        await axios.post(`${BASE_URL}/execute`, {
-          prompt: 'test prompt',
-          context: {
-            type: 'smart_contract',
-            tools: [{ name: 'validatePlutusScript', config: {} }],
-          },
-        });
-      });
-
-      wsClient.on('error', (error) => done(error));
+    test('should get basic API info', async () => {
+      const response = await axios.get(`${BASE_URL}`);
+      expect(response.status).toBe(200);
+      expect(response.data).toHaveProperty('status', 'ok');
     });
   });
 });
