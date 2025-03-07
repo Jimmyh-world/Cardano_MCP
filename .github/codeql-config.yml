@@ -22,12 +22,14 @@ extraction:
     # Specify the language version
     setup:
       typescript: true
-    # Set verbosity level - using an accepted value without quotes
-    verbosity: progress
-    # You can also use one of these valid values:
-    # verbosity: off
-    # verbosity: errors
-    # verbosity: warnings
-    # verbosity: debug  # or progress+
-    # verbosity: trace  # or progress++
-    # verbosity: progress+++
+    # Use the exact string pattern from the error message
+    verbosity: 'info'
+    # Valid values according to the pattern:
+    # ^(off|errors|warnings|(info|progress)|(debug|progress\+)|(trace|progress\+\+)|progress\+\+\+)$
+    # - verbosity: "off"
+    # - verbosity: "errors"
+    # - verbosity: "warnings"
+    # - verbosity: "info" or "progress"
+    # - verbosity: "debug" or "progress+"
+    # - verbosity: "trace" or "progress++"
+    # - verbosity: "progress+++"
