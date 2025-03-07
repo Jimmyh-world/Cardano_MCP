@@ -16,7 +16,60 @@ The repositories module provides functionality to index, query, and manage GitHu
 - GitHub API access (token recommended for higher rate limits)
 - Basic understanding of the Model Context Protocol
 
-## Basic Integration
+## Integration Options
+
+There are two ways to integrate the repositories module:
+
+### Option 1: Using the Central Integration Function (Recommended)
+
+```typescript
+import { CardanoMcpServer } from '../server/mcpServer.js';
+import { integrateRepositories } from '../server/integrations/repositoryIntegration.js';
+
+// Create the MCP server
+const server = new CardanoMcpServer({
+  name: 'cardano-mcp-server',
+  version: '1.0.0',
+  enableRepositories: true, // Enable the repositories module
+});
+
+// Server is automatically configured with repositories module
+// All resources, tools, and prompts are registered
+```
+
+### Option 2: Manual Integration
+
+```typescript
+// Import repositories module components
+import {
+  createRepositoryRegistry,
+  createGitHubClient,
+  createContentProcessors,
+  createRepositoryIndexer,
+  createRepositoryStorage,
+} from './repositories/index.js';
+
+// Initialize components
+const repositoryRegistry = createRepositoryRegistry();
+const repositoryStorage = createRepositoryStorage();
+const githubClient = createGitHubClient({
+  authToken: process.env.GITHUB_TOKEN, // Optional
+});
+const contentProcessors = createContentProcessors();
+const repositoryIndexer = createRepositoryIndexer({
+  githubClient,
+  repositoryRegistry,
+  repositoryStorage,
+  contentProcessors,
+});
+
+// Register resources, tools, and prompts manually
+registerRepositoryResources(server, repositoryRegistry, repositoryIndexer, repositoryStorage);
+registerRepositoryTools(server, repositoryRegistry, repositoryIndexer);
+registerRepositoryPrompts(server, repositoryRegistry, repositoryIndexer, repositoryStorage);
+```
+
+## Basic Integration Steps
 
 ### Step 1: Import and Initialize
 
@@ -57,9 +110,9 @@ repositoryRegistry.addDomain('cardano', {
 });
 
 // Pre-index important repositories
-(async () => {
+async function preIndexRepositories() {
   for (const repo of repositoryRegistry.getAllRepositories()) {
-    if (repositoryIndexer.needsIndexing(repo.owner, repo.name)) {
+    if (await repositoryIndexer.needsIndexing(repo.owner, repo.name)) {
       await repositoryIndexer.indexRepository({
         owner: repo.owner,
         name: repo.name,
@@ -67,13 +120,15 @@ repositoryRegistry.addDomain('cardano', {
       });
     }
   }
-})();
+}
+
+preIndexRepositories().catch(console.error);
 ```
 
 ### Step 3: Register MCP Resources
 
 ```typescript
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 const server = new McpServer({
   name: 'cardano-mcp-server',
@@ -81,42 +136,38 @@ const server = new McpServer({
 });
 
 // Repository metadata resource
-server.resource(
-  'repository-info',
-  new ResourceTemplate('repository://{owner}/{repo}', { list: undefined }),
-  async (uri, { owner, repo }) => {
-    const repository = repositoryRegistry.findRepository(owner, repo);
-    if (!repository) {
-      throw new Error(`Repository ${owner}/${repo} not found`);
-    }
+server.resource('repository-info', 'repository://{owner}/{repo}', async (uri, { owner, repo }) => {
+  const repository = repositoryRegistry.findRepository(owner, repo);
+  if (!repository) {
+    throw new Error(`Repository ${owner}/${repo} not found`);
+  }
 
-    // Ensure repository is indexed
-    if (repositoryIndexer.needsIndexing(owner, repo)) {
-      await repositoryIndexer.indexRepository({
-        owner,
-        name: repo,
-        domain: repository.domain,
-      });
-    }
+  // Ensure repository is indexed
+  if (await repositoryIndexer.needsIndexing(owner, repo)) {
+    await repositoryIndexer.indexRepository({
+      owner,
+      name: repo,
+      domain: repository.domain,
+    });
+  }
 
-    // Get metadata from storage
-    const metadata = repositoryStorage.getRepositoryMetadata(`${owner}/${repo}`);
+  // Get metadata from storage
+  const metadata = repositoryStorage.getRepositoryMetadata(`${owner}/${repo}`);
 
-    return {
-      contents: [
-        {
-          uri: uri.href,
-          text: JSON.stringify(metadata, null, 2),
-        },
-      ],
-    };
-  },
-);
+  return {
+    contents: [
+      {
+        uri: uri.href,
+        text: JSON.stringify(metadata, null, 2),
+      },
+    ],
+  };
+});
 
 // Repository file content resource
 server.resource(
   'repository-file',
-  new ResourceTemplate('repository://{owner}/{repo}/file/{*path}', { list: undefined }),
+  'repository://{owner}/{repo}/file/{*path}',
   async (uri, { owner, repo, path }) => {
     // Find repository
     const repository = repositoryRegistry.findRepository(owner, repo);
@@ -125,7 +176,7 @@ server.resource(
     }
 
     // Ensure repository is indexed
-    if (repositoryIndexer.needsIndexing(owner, repo)) {
+    if (await repositoryIndexer.needsIndexing(owner, repo)) {
       await repositoryIndexer.indexRepository({
         owner,
         name: repo,
@@ -153,7 +204,7 @@ server.resource(
 // List repository files resource
 server.resource(
   'repository-files',
-  new ResourceTemplate('repository://{owner}/{repo}/files', { list: undefined }),
+  'repository://{owner}/{repo}/files',
   async (uri, { owner, repo }) => {
     // Find repository
     const repository = repositoryRegistry.findRepository(owner, repo);
@@ -162,7 +213,7 @@ server.resource(
     }
 
     // Ensure repository is indexed
-    if (repositoryIndexer.needsIndexing(owner, repo)) {
+    if (await repositoryIndexer.needsIndexing(owner, repo)) {
       await repositoryIndexer.indexRepository({
         owner,
         name: repo,
@@ -247,13 +298,7 @@ server.tool(
     try {
       const repository = repositoryRegistry.findRepository(owner, repo);
       const isRegistered = Boolean(repository);
-      const indexingStatus = repositoryIndexer.getIndexingStatus(owner, repo);
-      const needsIndexing = isRegistered ? repositoryIndexer.needsIndexing(owner, repo) : false;
-
-      const metadata = repositoryStorage.getRepositoryMetadata(`${owner}/${repo}`);
-      const contentCount = isRegistered
-        ? repositoryStorage.listContent(`${owner}/${repo}`).length
-        : 0;
+      const indexingStatus = await repositoryIndexer.getIndexingStatus(owner, repo);
 
       return {
         content: [
@@ -262,10 +307,9 @@ server.tool(
             text: JSON.stringify(
               {
                 isRegistered,
-                indexingStatus,
-                needsIndexing,
-                metadata: metadata || null,
-                contentCount,
+                isIndexed: indexingStatus.isIndexed,
+                lastIndexed: indexingStatus.lastIndexed,
+                needsIndexing: indexingStatus.needsIndexing,
               },
               null,
               2,
@@ -288,214 +332,149 @@ server.tool(
 );
 ```
 
-### Step 5: Create Repository-Aware Prompts
+## Repository Prompts
+
+The repositories module provides specialized prompts for repository analysis:
 
 ```typescript
 // Prompt to analyze repository structure
 server.prompt(
   'analyze-repository',
   {
-    owner: z.string(),
-    repo: z.string(),
+    owner: z.string().describe('Repository owner'),
+    repo: z.string().describe('Repository name'),
   },
-  ({ owner, repo }) => ({
-    messages: [
-      {
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `Analyze the structure and content of the GitHub repository ${owner}/${repo}. Provide insights about:
-1. The purpose of the repository
-2. Main components and their responsibilities
-3. Programming languages used
-4. Key dependencies
-5. Documentation quality
-6. Testing approach
-
-You can access the repository information using: repository://${owner}/${repo}
-You can list files using: repository://${owner}/${repo}/files
-You can access specific files using: repository://${owner}/${repo}/file/PATH`,
-        },
-      },
-    ],
-  }),
-);
-
-// Prompt to understand repository code
-server.prompt(
-  'explain-code',
-  {
-    owner: z.string(),
-    repo: z.string(),
-    path: z.string(),
-  },
-  ({ owner, repo, path }) => ({
-    messages: [
-      {
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `Explain the code in file '${path}' from the repository ${owner}/${repo}.
-Provide a detailed explanation of:
-1. The purpose of this file
-2. Key functions/classes and their responsibilities
-3. How this file integrates with the rest of the codebase
-4. Any potential issues or improvements
-
-You can access the file using: repository://${owner}/${repo}/file/${path}`,
-        },
-      },
-    ],
-  }),
-);
-```
-
-## Advanced Integration
-
-### Resource Caching
-
-To optimize performance, implement caching for repository resources:
-
-```typescript
-// Simple in-memory cache for repository resources
-const resourceCache = new Map();
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-
-function getCachedResource(key) {
-  const cached = resourceCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedResource(key, data) {
-  resourceCache.set(key, {
-    data,
-    timestamp: Date.now(),
-  });
-}
-
-// Use in resource handler
-server.resource(
-  'repository-file',
-  new ResourceTemplate('repository://{owner}/{repo}/file/{*path}', { list: undefined }),
-  async (uri, { owner, repo, path }) => {
-    // Check cache first
-    const cacheKey = `file:${owner}/${repo}/${path}`;
-    const cached = getCachedResource(cacheKey);
-    if (cached) {
-      return cached;
+  async ({ owner, repo }, opts) => {
+    // Find repository
+    const repository = repositoryRegistry.findRepository(owner, repo);
+    if (!repository) {
+      return `I don't have information about the repository ${owner}/${repo}. 
+              Please try indexing it first with the index-repository tool.`;
     }
 
-    // Regular implementation...
-    const result = {
-      contents: [
-        {
-          uri: uri.href,
-          text: content.content,
-        },
-      ],
-    };
+    // Get repository metadata
+    const metadata = repositoryStorage.getRepositoryMetadata(`${owner}/${repo}`);
 
-    // Cache result
-    setCachedResource(cacheKey, result);
-    return result;
+    // Get repository content structure
+    const contents = repositoryStorage.listContent(`${owner}/${repo}`);
+
+    return `
+      Analyze the structure and purpose of the ${owner}/${repo} repository.
+      
+      Repository Information:
+      ${JSON.stringify(metadata, null, 2)}
+      
+      Key Files and Directories:
+      ${JSON.stringify(
+        contents.slice(0, 20).map((c) => c.path),
+        null,
+        2,
+      )}
+      
+      Analyze the repository structure, identify the main components, programming languages used,
+      and the overall architecture of the project. Explain what this repository does and how it's organized.
+    `;
   },
 );
 ```
 
-### Authentication and Authorization
+## Environment Configuration
 
-For repositories requiring authentication:
+Configure the repositories module using environment variables:
 
-```typescript
-// Environment-based authentication
-const githubClient = createGitHubClient({
-  authToken: process.env.GITHUB_TOKEN,
-});
+```env
+# Enable repositories module
+ENABLE_REPOSITORIES=true
 
-// Or user-based authentication
-server.tool(
-  'set-github-token',
-  {
-    token: z.string().describe('GitHub personal access token'),
-  },
-  async ({ token }, context) => {
-    // Store token securely in user session
-    context.session.githubToken = token;
-
-    // Create user-specific GitHub client
-    context.session.githubClient = createGitHubClient({
-      authToken: token,
-    });
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub token configured successfully',
-        },
-      ],
-    };
-  },
-);
-
-// Then use in resources
-server.resource(
-  'private-repository',
-  new ResourceTemplate('private-repository://{owner}/{repo}', { list: undefined }),
-  async (uri, { owner, repo }, context) => {
-    // Use user-specific client if available
-    const client = context.session.githubClient || githubClient;
-
-    // Rest of implementation...
-  },
-);
+# GitHub API configuration
+GITHUB_API_TOKEN=your_github_token
+GITHUB_API_BASE_URL=https://api.github.com
+GITHUB_API_TIMEOUT=10000
 ```
+
+## Testing
+
+To test the repositories module integration, use the standalone test configuration:
+
+```bash
+npm run test:repository
+```
+
+This will run all repository tests with the appropriate configuration.
 
 ## Best Practices
 
-1. **Efficient Indexing**:
+1. **Use environment variables for configuration**
 
-   - Index repositories lazily when first accessed
-   - Implement background re-indexing for frequently accessed repositories
-   - Use webhooks for real-time updates when possible
+   - Store tokens and other sensitive data in environment variables
+   - Use configuration files for domain and repository settings
 
-2. **Error Handling**:
+2. **Pre-index important repositories**
 
-   - Provide clear error messages for common issues (rate limits, missing repositories)
-   - Implement retry strategies for transient errors
-   - Log detailed information for debugging
+   - Index frequently used repositories during startup
+   - Implement a background job to periodically refresh indexed repositories
 
-3. **Performance**:
+3. **Implement proper error handling**
 
-   - Cache repository content to reduce API calls
-   - Implement pagination for large repositories
-   - Consider content filtering to exclude binary files or large assets
+   - Use specific error types for different failure scenarios
+   - Include context information in error messages
+   - Provide fallback mechanisms for transient failures
 
-4. **Security**:
-   - Never expose GitHub tokens in responses
-   - Validate user input to prevent path traversal or injection attacks
-   - Implement rate limiting to prevent abuse
+4. **Optimize for performance**
+
+   - Cache repository content when appropriate
+   - Use pagination for large repositories
+   - Implement rate limiting to avoid GitHub API restrictions
+
+5. **Consider security implications**
+   - Validate user input before passing to GitHub API
+   - Implement access controls for private repositories
+   - Sanitize repository content before processing
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **GitHub API Rate Limits**:
+1. **Rate Limit Exceeded**
 
-   - Use authenticated requests to increase limits
-   - Implement rate limit checking before operations
-   - Add exponential backoff for retries
+   - Use a GitHub token to increase rate limits
+   - Implement exponential backoff for retries
+   - Monitor rate limit usage with `githubClient.checkRateLimits()`
 
-2. **Large Repository Performance**:
+2. **Repository Not Found**
 
-   - Implement path filtering to index only specific directories
-   - Use shallow indexing (skip certain file types)
-   - Consider paginated or incremental indexing
+   - Verify the repository exists on GitHub
+   - Check owner and repository name spelling
+   - Ensure the repository is public or your token has access
 
-3. **Integration Issues**:
-   - Ensure all module components are properly initialized
-   - Check for circular dependencies
-   - Verify consistent error handling across components
+3. **Indexing Failures**
+   - Check network connectivity
+   - Verify API access permissions
+   - Review repository size (very large repositories may timeout)
+
+### Debugging
+
+1. Enable debug logging:
+
+   ```typescript
+   process.env.DEBUG = 'cardano-mcp:repositories:*';
+   ```
+
+2. Check indexing status:
+
+   ```typescript
+   const status = await repositoryIndexer.getIndexingStatus(owner, repo);
+   console.log(status);
+   ```
+
+3. Verify repository registration:
+   ```typescript
+   const repo = repositoryRegistry.findRepository(owner, repo);
+   console.log(repo);
+   ```
+
+## Additional Resources
+
+- [Repository Module Documentation](./README.md)
+- [Testing Guide](./TESTING.md)
+- [Test Configuration](./TEST_CONFIGURATION.md)

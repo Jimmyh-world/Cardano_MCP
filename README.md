@@ -119,24 +119,33 @@ npm test
 npm run test:coverage
 
 # Run specific test categories
-npm run test:knowledge   # Run knowledge module tests
-npm run test:repository  # Run repository tests
-npm run test:errors      # Run error handling tests
-npm run test:server      # Run server integration tests
+npm run test:knowledge     # Run knowledge module tests
+npm run test:repository    # Run repository tests
+npm run test:errors        # Run error handling tests
+npm run test:server        # Run server integration tests
+npm run test:debug         # Run tests with debugging options
 
-# Run tests in debug mode
-npm run test:debug
+# Run standalone tests (without mock server)
+npm run test:repository:standalone  # Run repository tests without server
+npm run test:errors:standalone      # Run error tests without server
 ```
 
 For comprehensive documentation on testing, see [TESTING.md](./TESTING.md).
 
-We use specialized Jest configurations for different test categories:
+We use a modular approach to test configuration:
 
-- `jest.base.config.js`: Base configuration shared by all test suites
-- `jest.knowledge.config.js`: Configuration for knowledge module tests
-- `jest.repository.config.js`: Configuration for repository module tests
-- `jest.server.config.js`: Configuration for server integration tests
-- `jest.errors.config.js`: Configuration for error handling tests
+- [`jest.base.config.js`](./jest.base.config.js): Base configuration shared by all test suites
+- [`jest.knowledge.config.js`](./jest.knowledge.config.js): Configuration for knowledge module tests
+- [`jest.repository.config.js`](./jest.repository.config.js): Configuration for repository module tests
+- [`jest.server.config.js`](./jest.server.config.js): Configuration for server integration tests
+- [`jest.errors.config.js`](./jest.errors.config.js): Configuration for error handling tests
+- [`jest.errors.standalone.js`](./jest.errors.standalone.js): Standalone error tests configuration
+- [`jest.repository.standalone.js`](./jest.repository.standalone.js): Standalone repository tests configuration
+
+For detailed information on test categories and recent improvements, see:
+
+- [Test Categories](./docs/testing/TEST_CATEGORIES.md)
+- [Test Configuration Fixes](./docs/testing/TEST_CONFIGURATION_FIXES.md)
 
 ## Usage Examples
 
@@ -188,9 +197,13 @@ const result = await client.callTool({
 });
 ```
 
-## Contributing
+## Project Documentation
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards
+- [SECURITY.md](SECURITY.md) - Security policies and practices
+- [TESTING.md](TESTING.md) - Comprehensive testing guide
 
 ## License
 
@@ -214,6 +227,9 @@ Key features:
 - Section extraction and metadata generation
 - Markdown processing
 - Error handling with retry capabilities
+- ~92.39% test coverage
+
+For detailed information, see the [knowledge module documentation](docs/features/knowledge-module/README.md).
 
 ### Repositories Module
 
@@ -225,6 +241,7 @@ Key features:
 - Process README files for structured content
 - Maintain a registry of available repositories
 - Store repository content for efficient access
+- > 80% branch coverage
 
 For detailed information, see the [repositories documentation](docs/repositories/README.md).
 
@@ -244,3 +261,19 @@ Key features:
 - Error factories for different domains (network, documentation, etc.)
 - Retry handler with configurable retry logic
 - Consistent error codes and status codes
+- ~93% test coverage
+
+For detailed information, see the [error handling documentation](docs/features/error-handling/README.md).
+
+### Context Assembly Module (Coming Soon)
+
+The Context Assembly Module will serve as the bridge between the Knowledge and Repositories modules, providing comprehensive contextual information for LLM prompts and responses.
+
+Key features:
+
+- Multi-source retrieval from documentation and repositories
+- Relevance ranking based on user queries
+- Context window optimization for LLMs
+- Source attribution and confidence indicators
+
+For detailed information, see the [context assembly documentation](docs/features/context-assembly/README.md).

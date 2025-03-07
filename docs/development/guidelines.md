@@ -75,14 +75,40 @@ server.resource('blockfrost-docs', 'docs://blockfrost/{section}', async (uri, { 
 ```
 src/
 ├── server/           # MCP Server implementation
+│   ├── mcpServer.ts  # CardanoMcpServer class
+│   ├── integrations/ # Module integration
+│   ├── resources/    # MCP resources
+│   ├── tools/        # MCP tools
+│   └── prompts/      # MCP prompts
 ├── knowledge/        # Documentation and knowledge base
-├── tools/           # Development tools
-└── templates/       # Code templates
+│   └── processors/   # Documentation processors
+├── repositories/     # Repository indexing module
+│   ├── configs/      # Repository configurations
+│   ├── processors/   # Repository content processors
+│   ├── githubClient.ts # GitHub API client
+│   ├── indexer.ts    # Repository indexer
+│   ├── registry.ts   # Repository registry
+│   ├── storage.ts    # Content storage
+│   └── types.ts      # Type definitions
+├── types/            # Type definitions
+├── utils/            # Utility functions
+│   └── errors/       # Error handling system
+│       ├── core/     # Core error classes
+│       ├── factories/# Error factory classes
+│       ├── handlers/ # Error handlers (retry, etc.)
+│       └── types/    # Error type definitions
+├── tools/            # Development tools and utilities
+├── prompts/          # Prompt templates and configurations
+└── index.ts          # MCP server entry point
 
 tests/
 ├── unit/            # Unit tests
+│   ├── knowledge/   # Knowledge module tests
+│   ├── repositories/ # Repository module tests
+│   ├── server/      # Server tests
+│   └── utils/       # Utility tests including error handling
 ├── integration/     # Integration tests
-└── helpers/         # Test helpers
+└── setup.ts         # Test setup and mock server configuration
 ```
 
 ### File Naming
@@ -93,24 +119,59 @@ tests/
 
 ## Testing Standards
 
-### Unit Tests
+### Test Configuration
 
-- One test file per implementation file
-- Clear test descriptions
-- Proper setup and teardown
-- Mock external dependencies
+We use a modular approach to test configuration:
 
-### Integration Tests
+- `jest.base.config.js`: Base configuration shared by all test suites
+- `jest.knowledge.config.js`: Configuration for knowledge module tests
+- `jest.repository.config.js`: Configuration for repository module tests
+- `jest.server.config.js`: Configuration for server integration tests
+- `jest.errors.config.js`: Configuration for error handling tests
+- `jest.errors.standalone.js`: Standalone error tests configuration
+- `jest.repository.standalone.js`: Standalone repository tests configuration
 
-- Test complete workflows
-- Verify component interaction
-- Test error scenarios
+This approach allows us to run different test categories independently and with appropriate configurations.
+
+### Test Categories
+
+- **Unit Tests**: Tests for individual components without external dependencies
+- **Server Tests**: Tests that require the mock server
+- **Repository Tests**: Tests for the repository module
+- **Knowledge Tests**: Tests for the documentation processing module
+- **Error Tests**: Tests for the error handling system
+
+### Running Tests
+
+Use the appropriate npm script for your test category:
+
+```bash
+npm run test:knowledge     # Run knowledge module tests
+npm run test:repository    # Run repository tests
+npm run test:errors        # Run error handling tests
+npm run test:server        # Run server integration tests
+npm run test:debug         # Run tests with debugging options
+
+# Standalone tests (without mock server)
+npm run test:repository:standalone  # Run repository tests without server
+npm run test:errors:standalone      # Run error tests without server
+```
 
 ### Coverage Requirements
 
-- Minimum 90% overall coverage
-- 100% coverage for critical paths
-- Document any exclusions
+- **Server Module**: 100% statement coverage
+- **Knowledge Module**: 95% statement, 90% branch coverage
+- **Repository Module**: 80% statement, 80% branch coverage
+- **Error Handling**: 90% statement, 85% branch coverage
+- **Overall**: Minimum 90% statement coverage
+
+### Test Organization
+
+- Group tests logically using `describe` and `it` blocks
+- Ensure test isolation (tests should not rely on other tests)
+- Use proper setup and teardown
+- Test both success and error scenarios
+- Include tests for edge cases and boundary conditions
 
 ## Documentation Requirements
 
@@ -127,6 +188,18 @@ tests/
 - Implementation details
 - Test coverage
 - Usage examples
+- Cross-references to related documentation
+
+### Module Documentation
+
+Each module should have its own README.md that includes:
+
+- Overview and purpose
+- Key components
+- API documentation
+- Usage examples
+- Testing approach
+- Integration guidelines
 
 ## Review Process
 
@@ -136,6 +209,7 @@ tests/
 - Meeting coverage requirements
 - Documentation updated
 - Code review completed
+- TypeScript errors resolved
 
 ### Review Checklist
 
@@ -145,6 +219,8 @@ tests/
 - [ ] Documentation updated
 - [ ] Code follows KISS principle
 - [ ] Security considerations addressed
+- [ ] TypeScript types properly implemented
+- [ ] Uses appropriate test configuration
 
 ## Security Considerations
 
@@ -220,6 +296,17 @@ const result = await RetryHandler.withRetry(async () => axios.get(url), {
 - Mock error conditions for comprehensive testing
 - Verify error properties and context data
 - Test retry logic with simulated failures
+- Use appropriate error test configuration
+
+## TypeScript Best Practices
+
+- Use strict typing for all code
+- Avoid using `any` type
+- Create interfaces for data structures
+- Use generics for reusable components
+- Document complex types with JSDoc
+- Use type guards for runtime type checking
+- Implement proper error typing
 
 ## Maintenance
 
@@ -232,51 +319,9 @@ This document should be:
 
 Remember: The goal is to maintain high-quality, secure, and maintainable code through consistent test-driven development practices.
 
-### Acceptance Criteria
+## Related Documentation
 
-What needs to be done to consider this resolved
-
-### Notes
-
-Any additional context or considerations
-
-## Implementation Example
-
-```typescript
-// Technical Debt Item: Type safety improvement needed
-// Priority: P2
-// Created: 2024-03-21
-// Ticket: TECH-789
-// @ts-ignore Temporarily allowing any type until proper interface is defined
-function processData(data: any) {
-  // Implementation
-}
-```
-
-## Review Process
-
-### When to Review Technical Debt
-
-- During sprint planning
-- Before major releases
-- During dedicated cleanup sprints
-- When related code is being modified
-
-### Review Checklist
-
-- [ ] Are any P0 items pending?
-- [ ] Have P1 items been properly ticketed?
-- [ ] Is technical debt documented?
-- [ ] Are ignore comments properly explained?
-- [ ] Is the debt registry up to date?
-
-## Maintenance
-
-This document should be:
-
-- Reviewed quarterly
-- Updated based on team feedback
-- Used in code reviews
-- Referenced in pull request templates
-
-Remember: The goal is to maintain high-quality code while being pragmatic about development speed and resource allocation.
+- [TESTING.md](../../TESTING.md) - Comprehensive testing guide
+- [Test Categories](../testing/TEST_CATEGORIES.md) - Overview of test categories
+- [Test Configuration Fixes](../testing/TEST_CONFIGURATION_FIXES.md) - Recent testing improvements
+- [CHANGELOG.md](../../CHANGELOG.md) - Version history and changes

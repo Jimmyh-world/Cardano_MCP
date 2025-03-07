@@ -30,9 +30,57 @@
   - Clean linter report
 - **Notes:** Consider implementing automated import cleanup in CI/CD
 
+### 3. Open Handle Issue in Test Setup
+
+- **Priority:** P2
+- **Created:** 2025-03-08
+- **Location:** `tests/setup.ts`
+- **Description:** Open handle (PIPEWRAP) in mock server leading to Jest exit warnings
+- **Rationale:** Current solution has improved the issue but not fully resolved it
+- **Acceptance Criteria:**
+  - No open handles after test completion
+  - Clean test exit without warnings
+  - Maintain existing test functionality
+- **Notes:** Related to subprocess management in Node.js
+
 ## Resolved Items
 
-_(Template for resolved items)_
+### 1. TypeScript Errors in Repository Integration
+
+- **Priority:** P1
+- **Created:** 2025-03-06
+- **Resolved:** 2025-03-08
+- **Location:**
+  - `src/server/resources/repositoryResources.ts`
+  - `src/server/tools/repositoryTools.ts`
+  - `src/prompts/implementation/index.ts`
+- **Description:** TypeScript errors in repository integration code, including interface inconsistencies and method signature mismatches
+- **Resolution:** Updated method signatures, fixed interface implementations, and corrected return types
+- **Notes:** Part of the v0.3.2 release
+
+### 2. Test Configuration Issues
+
+- **Priority:** P1
+- **Created:** 2025-03-06
+- **Resolved:** 2025-03-08
+- **Location:** Jest configuration files and `tests/setup.ts`
+- **Description:** Test configuration issues leading to server timeout errors and unreliable test execution
+- **Resolution:**
+  - Created base configuration (`jest.base.config.js`)
+  - Implemented specialized configurations for different modules
+  - Enhanced mock server reliability
+  - Added standalone configurations for tests that don't need the mock server
+- **Notes:** Documented in `docs/testing/TEST_CONFIGURATION_FIXES.md`
+
+### 3. Error Factory Inconsistency
+
+- **Priority:** P1
+- **Created:** 2025-03-07
+- **Resolved:** 2025-03-08
+- **Location:** `tests/unit/utils/errors.test.ts`
+- **Description:** Property 'fromAxiosError' reported as non-existent on the type 'typeof ErrorFactory'
+- **Resolution:** Updated error tests to use NetworkErrorFactory instead of ErrorFactory
+- **Notes:** Added to test coverage for error handling
 
 ### Example Resolved Item
 
@@ -45,6 +93,12 @@ _(Template for resolved items)_
 - **Notes:** [Any follow-up considerations]
 
 ## Review History
+
+### 2025-03-08
+
+- Added resolved items for TypeScript errors, test configuration, and error factory issues
+- Added new technical debt item for open handle in test setup
+- Updated format to include resolution details
 
 ### 2024-03-21
 

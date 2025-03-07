@@ -18,15 +18,20 @@ Tests are organized by module and type:
 
 ## Test Configurations
 
-We use specialized Jest configurations for different test categories:
+We use a modular approach to test configuration with a base configuration and specialized configurations for different modules:
 
-- `jest.base.config.js`: Base configuration shared by all test suites
-- `jest.knowledge.config.js`: Configuration for knowledge module tests
-- `jest.repository.config.js`: Configuration for repository module tests
-- `jest.server.config.js`: Configuration for server integration tests
-- `jest.errors.config.js`: Configuration for error handling tests
-- `jest.repository.standalone.js`: Standalone configuration for repository tests without mock server
-- `jest.errors.standalone.js`: Standalone configuration for the legacy error tests
+- [`jest.base.config.js`](./jest.base.config.js): Base configuration shared by all test suites
+- [`jest.knowledge.config.js`](./jest.knowledge.config.js): Configuration for knowledge module tests
+- [`jest.repository.config.js`](./jest.repository.config.js): Configuration for repository module tests
+- [`jest.server.config.js`](./jest.server.config.js): Configuration for server integration tests
+- [`jest.errors.config.js`](./jest.errors.config.js): Configuration for error handling tests
+- [`jest.errors.standalone.js`](./jest.errors.standalone.js): Standalone configuration for the legacy error tests
+- [`jest.repository.standalone.js`](./jest.repository.standalone.js): Standalone configuration for repository tests without mock server
+
+For more details on test configurations, see:
+
+- [Test Categories](./docs/testing/TEST_CATEGORIES.md): Overview of different test categories and when to use them
+- [Test Configuration Fixes](./docs/testing/TEST_CONFIGURATION_FIXES.md): Recent improvements to test reliability
 
 ## Running Tests
 
@@ -50,6 +55,9 @@ npm run test:server
 
 # Run error handling tests
 npm run test:errors
+
+# Run tests with debugging options
+npm run test:debug
 ```
 
 ### Running Individual Test Files
@@ -75,15 +83,37 @@ If you encounter issues with the mock server:
 1. Ensure no other processes are using ports 3000 and 3001
 2. Check the server logs for any errors
 3. Increase the server startup timeout if needed (set `SERVER_STARTUP_TIMEOUT` environment variable)
+4. Run with the `--detectOpenHandles` flag to identify resource leaks
+
+### Bypassing the Mock Server
+
+For tests that don't depend on the server, use the standalone configurations:
+
+```bash
+# Run repository tests without mock server
+npm run test:repository:standalone
+
+# Run error tests without mock server
+npm run test:errors:standalone
+```
 
 ## Test Coverage
 
 We aim for high test coverage across all modules:
 
+- **Server Module**: 100% statement coverage
 - **Knowledge Module**: 95% statement, 90% branch coverage
 - **Repository Module**: 80% statement, 80% branch coverage
 - **Error Handling**: 90% statement, 85% branch coverage
-- **Server**: 80% statement, 75% branch coverage
+
+Current coverage metrics:
+
+- Server Test Coverage: 100%
+- Error Handling Coverage: ~93% (statements)
+- Documentation Processing Coverage: ~92.39% (statements)
+- Repositories Module Coverage: ~81.96% (branch)
+- Repository Integration Module: 100% (statements)
+- Overall Test Coverage: ~95% (statements)
 
 To view test coverage:
 
@@ -102,6 +132,7 @@ Coverage reports are generated in the `coverage/` directory.
 3. **Mocking**: Use Jest's mocking capabilities to isolate components
 4. **Error Cases**: Test both success and error cases
 5. **Edge Cases**: Include tests for edge cases and boundary conditions
+6. **Use Appropriate Configuration**: Select the right test configuration for your test type
 
 ### Example Test Structure
 
@@ -153,6 +184,11 @@ If tests fail with "Server startup timeout", try:
 1. Increasing the timeout: `SERVER_STARTUP_TIMEOUT=10000 npm test`
 2. Checking if the mock server ports are in use
 3. Examining the server logs for errors
+4. Using a standalone configuration that doesn't require the mock server
+
+### Known Issues
+
+There is a minor issue with an open handle (PIPEWRAP) that persists in the tests/setup.ts file. This doesn't affect test functionality but causes Jest to exit with a warning. The root cause is in the spawn process for the mock server, and a cleanup process has been implemented but could be further improved.
 
 ## Continuous Integration
 
@@ -173,3 +209,9 @@ The CI pipeline enforces:
 - **Jest**: Testing framework
 - **ts-jest**: TypeScript support for Jest
 - **@types/jest**: TypeScript definitions for Jest
+
+## Further Resources
+
+- [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [TypeScript Testing Best Practices](https://github.com/goldbergyoni/javascript-testing-best-practices)
+- [Repository Testing Guide](./docs/repositories/TESTING.md)
