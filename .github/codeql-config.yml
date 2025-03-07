@@ -1,0 +1,33 @@
+# CodeQL Configuration for Cardano MCP
+name: 'Cardano MCP CodeQL config'
+
+# Configure paths that should or should not be analyzed
+paths:
+  - src
+  - tests
+paths-ignore:
+  - node_modules
+  - '**/*.test.ts'
+  - '**/*.spec.ts'
+  - dist
+  - coverage
+
+# Configure the queries to run
+queries:
+  - uses: security-and-quality
+
+# Configure extractor options
+extraction:
+  javascript:
+    # Specify the language version
+    setup:
+      typescript: true
+    # Set verbosity level - using an accepted value without quotes
+    verbosity: progress
+    # You can also use one of these valid values:
+    # verbosity: off
+    # verbosity: errors
+    # verbosity: warnings
+    # verbosity: debug  # or progress+
+    # verbosity: trace  # or progress++
+    # verbosity: progress+++
