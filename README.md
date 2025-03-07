@@ -85,16 +85,44 @@ npm run start:mcp:sse
 
 ### Testing
 
+The project uses Jest for testing with a modular configuration approach. Tests are organized into several categories:
+
+- **Knowledge Tests**: Tests related to documentation processing, parsing, and knowledge extraction
+- **Repository Tests**: Tests for repository management, indexing, and storage
+- **Error Handling Tests**: Tests for error factories, retry mechanisms, and application errors
+- **Server Integration Tests**: Tests for the MCP server API and WebSocket functionality
+
+### Running Tests
+
+You can run specific test categories using the following commands:
+
 ```bash
 # Run all tests
 npm test
 
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
+# Run tests with coverage report
 npm run test:coverage
+
+# Run specific test categories
+npm run test:knowledge   # Run knowledge module tests
+npm run test:repository  # Run repository tests
+npm run test:errors      # Run error handling tests
+npm run test:server      # Run server integration tests
+
+# Run tests in debug mode
+npm run test:debug
 ```
+
+For comprehensive documentation on testing, see [TESTING.md](./TESTING.md).
+
+Each test category has its own configuration file:
+
+- `jest.knowledge.config.js` - Configuration for knowledge tests
+- `jest.repository.config.js` - Configuration for repository tests
+- `jest.errors.config.js` - Configuration for error handling tests
+- `jest.server.config.js` - Configuration for server integration tests
+
+The main `jest.config.js` uses Jest's projects feature to combine all configurations.
 
 ## Usage Examples
 
@@ -136,13 +164,6 @@ const result = await client.callTool({
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## Testing
-
-- Unit tests for all components
-- Integration tests for workflows
-- Minimum 90% coverage requirement
-- TDD approach for new features
 
 ## License
 
