@@ -3,13 +3,27 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { McpResponse } from '../types';
 
 const app = express();
-const port = 3000;
+const port = parseInt(process.env.HTTP_PORT || '3000', 10);
+const wsPort = parseInt(process.env.WS_PORT || '3001', 10);
+
+// Track server state
+const serverState = {
+  httpReady: false,
+  wsReady: false,
+  startTime: Date.now(),
+};
 
 // Create WebSocket server
-const wss = new WebSocketServer({ port: 3001 });
+const wss = new WebSocketServer({ port: wsPort });
 
 // Middleware to parse JSON
 app.use(express.json());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // Basic request validation
 function validateRequest(req: express.Request): boolean {
@@ -21,6 +35,29 @@ function validateRequest(req: express.Request): boolean {
 }
 
 // GET endpoint for health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Date.now() - serverState.startTime,
+    httpReady: serverState.httpReady,
+    wsReady: serverState.wsReady,
+  });
+});
+
+// Readiness check endpoint
+app.get('/ready', (req, res) => {
+  if (serverState.httpReady && serverState.wsReady) {
+    res.status(200).json({ ready: true });
+  } else {
+    res.status(503).json({
+      ready: false,
+      httpReady: serverState.httpReady,
+      wsReady: serverState.wsReady,
+    });
+  }
+});
+
+// GET endpoint for API base
 app.get('/v1', (req, res) => {
   res.json({ status: 'ok' });
 });
@@ -67,6 +104,32 @@ app.post('/v1/execute', (req, res) => {
   }, 500);
 });
 
+// Graceful shutdown handler
+const gracefulShutdown = () => {
+  console.log('Shutting down servers gracefully...');
+
+  // Close the WebSocket server first
+  wss.close(() => {
+    console.log('WebSocket server closed');
+
+    // Then close the HTTP server
+    httpServer.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+
+    // Force exit after timeout
+    setTimeout(() => {
+      console.log('Forcing exit after shutdown timeout');
+      process.exit(1);
+    }, 5000);
+  });
+};
+
+// Register shutdown handlers
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
 // WebSocket connection handling
 wss.on('connection', (ws: WebSocket) => {
   console.log('Client connected to WebSocket');
@@ -108,8 +171,34 @@ wss.on('connection', (ws: WebSocket) => {
   });
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`Mock MCP server running at http://localhost:${port}`);
-  console.log(`WebSocket server running at ws://localhost:3001`);
+// When WebSocket server is ready
+wss.on('listening', () => {
+  serverState.wsReady = true;
+  console.log(`WebSocket server ready at ws://localhost:${wsPort}`);
+
+  // Log ready state if both servers are ready
+  if (serverState.httpReady && serverState.wsReady) {
+    console.log('SERVERS_READY=true');
+  }
 });
+
+// Start the HTTP server
+const httpServer = app.listen(port, () => {
+  serverState.httpReady = true;
+  console.log(`Mock MCP HTTP server ready at http://localhost:${port}`);
+
+  // Log ready state if both servers are ready
+  if (serverState.httpReady && serverState.wsReady) {
+    console.log('SERVERS_READY=true');
+  }
+});
+
+// Set a timeout for server startup
+setTimeout(() => {
+  if (!serverState.httpReady || !serverState.wsReady) {
+    console.error('Server startup timeout - not all servers ready');
+    console.error(`HTTP server ready: ${serverState.httpReady}`);
+    console.error(`WebSocket server ready: ${serverState.wsReady}`);
+    process.exit(1);
+  }
+}, 10000);
