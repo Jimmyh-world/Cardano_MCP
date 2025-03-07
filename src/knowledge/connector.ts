@@ -190,7 +190,7 @@ export class KnowledgeBaseConnector implements KnowledgeConnector {
     }
   }
 
-  private async mockGenerateEmbedding(text: string): Promise<number[]> {
+  private async mockGenerateEmbedding(_text: string): Promise<number[]> {
     // Mock function to generate an embedding
     // In a real implementation, this would call an embedding service
     const dimension = parseInt(process.env.PGVECTOR_DIMENSION || '1536');
