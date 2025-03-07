@@ -208,7 +208,10 @@ beforeAll(async () => {
   }
 });
 
-// Clean up after all tests
+// Add console logging to help identify issues
+console.log('Cleaning up for Jest exit...');
+
+// Clear up after all tests
 afterAll((done) => {
   console.log('Shutting down mock server...');
 
@@ -221,20 +224,26 @@ afterAll((done) => {
     // Kill the server if it's still running
     if (mockServer) {
       console.log('Forcefully terminating server process with SIGKILL');
-      if (process.platform === 'win32') {
-        mockServer.kill('SIGKILL');
-      } else if (mockServer.pid !== undefined) {
-        try {
-          process.kill(-mockServer.pid, 'SIGKILL');
-        } catch (error: any) {
-          // Just log errors, don't prevent test completion
-          console.error('Error killing server process:', error);
+      try {
+        if (process.platform === 'win32') {
+          mockServer.kill('SIGKILL');
+        } else if (mockServer.pid !== undefined) {
+          try {
+            process.kill(-mockServer.pid, 'SIGKILL');
+          } catch (error) {
+            // Just log errors, don't prevent test completion
+            console.error('Error killing server process:', error);
+          }
         }
+      } catch (error) {
+        console.error('Error during force kill:', error);
+      } finally {
+        mockServer = null;
+        done();
       }
-      mockServer = null;
+    } else {
+      done();
     }
-
-    done();
   }, SERVER_SHUTDOWN_TIMEOUT_MS);
 
   // Clean function to be called when server exits or on timeout
@@ -252,19 +261,30 @@ afterAll((done) => {
       cleanup();
     });
 
-    // Send termination signal appropriate for the platform
     try {
+      // Try to terminate gracefully first
       if (process.platform === 'win32') {
         mockServer.kill();
       } else if (mockServer.pid !== undefined) {
-        process.kill(-mockServer.pid, 'SIGTERM');
+        console.log(`Sending SIGTERM to process group ${-mockServer.pid}`);
+        try {
+          process.kill(-mockServer.pid, 'SIGTERM');
+        } catch (error) {
+          console.error('Error sending SIGTERM:', error);
+          // Try to kill just the process if we can't kill the group
+          try {
+            mockServer.kill();
+          } catch (innerError) {
+            console.error('Error killing server directly:', innerError);
+          }
+        }
+      } else {
+        // Fallback to direct kill if no PID
+        mockServer.kill();
       }
-    } catch (error: any) {
-      // Ignore ESRCH error (process already gone)
-      if (error.code !== 'ESRCH') {
-        console.error('Error during server shutdown:', error);
-      }
-      cleanup();
+    } catch (error) {
+      console.error('Error shutting down server:', error);
+      cleanup(); // Ensure cleanup happens even if shutdown fails
     }
   } else {
     console.log('No mock server to shut down');

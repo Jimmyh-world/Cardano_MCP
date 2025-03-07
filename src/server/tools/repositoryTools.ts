@@ -78,19 +78,32 @@ export function registerRepositoryTools(server: McpServer): void {
       try {
         const repository = repositoryRegistry.findRepository(owner, repo);
         const isRegistered = Boolean(repository);
-        const indexingStatus = repositoryIndexer.getIndexingStatus(owner, repo);
-        const needsIndexing = isRegistered
-          ? await repositoryIndexer.needsIndexing(owner, repo)
-          : false;
 
+        // Create a repoId for all operations
+        const repoId = `${owner}/${repo}`;
+
+        // Get the indexing status using repository ID
+        const indexingStatus = await repositoryIndexer.getIndexingStatus(repoId);
+
+        // Determine if indexing is needed
+        let needsIndexing = false;
         let metadata = null;
         let contentCount = 0;
 
         if (isRegistered) {
-          const repoId = `${owner}/${repo}`;
+          // Get metadata if the repository is registered
           metadata = await repositoryStorage.getRepositoryMetadata(repoId);
-          const contentList = await repositoryStorage.listRepositoryContent(repoId);
-          contentCount = contentList.length;
+          if (metadata) {
+            // If we have metadata, check if indexing is needed
+            needsIndexing = repositoryIndexer.needsIndexing(metadata);
+          } else {
+            // If no metadata exists, indexing is definitely needed
+            needsIndexing = true;
+          }
+
+          // Get content count regardless of indexing status
+          const contents = await repositoryStorage.listRepositoryContent(repoId);
+          contentCount = contents.length;
         }
 
         return {
@@ -144,13 +157,14 @@ export function registerRepositoryTools(server: McpServer): void {
         }
 
         // Ensure repository is indexed
-        const needsIndexing = await repositoryIndexer.needsIndexing(owner, repo);
+        const repoId = `${owner}/${repo}`;
+        const metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+        const needsIndexing = !metadata || repositoryIndexer.needsIndexing(metadata);
         if (needsIndexing) {
           await repositoryIndexer.indexRepository(owner, repo, { forceReindex: false });
         }
 
         // Get all content
-        const repoId = `${owner}/${repo}`;
         const allContent = await repositoryStorage.listRepositoryContent(repoId);
 
         // Filter by file type if specified
@@ -169,7 +183,7 @@ export function registerRepositoryTools(server: McpServer): void {
           )
           .map((result) => ({
             path: result.path,
-            language: result.language || 'unknown',
+            language: result.metadata?.language || 'unknown',
             size: result.content ? result.content.length : 0,
             matches: result.content
               ? result.content.toLowerCase().split(query.toLowerCase()).length - 1

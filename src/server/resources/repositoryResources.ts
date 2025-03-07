@@ -2,6 +2,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { repositoryRegistry, repositoryIndexer, repositoryStorage } from '../../repositories/index';
 import { AppError } from '../../utils/errors/core/app-error';
 import { ErrorCode } from '../../utils/errors/types/error-codes';
+import { RepositoryContent } from '../../repositories/types';
 
 /**
  * Registers repository-related resources with the MCP server
@@ -23,15 +24,29 @@ export function registerRepositoryResources(server: McpServer): void {
           throw new AppError(`Repository ${ownerStr}/${repoStr} not found`, ErrorCode.NOT_FOUND);
         }
 
-        // Ensure repository is indexed
-        const needsIndexing = await repositoryIndexer.needsIndexing(ownerStr, repoStr);
-        if (needsIndexing) {
-          await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
-        }
-
-        // Get metadata from storage
+        // Create repository ID
         const repoId = `${ownerStr}/${repoStr}`;
-        const metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+
+        // Check if repository needs indexing
+        let metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+
+        if (!metadata) {
+          // If no metadata exists, we need to index the repository
+          await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
+          // Get the metadata after indexing
+          metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+          if (!metadata) {
+            throw new AppError(
+              `Failed to index repository ${ownerStr}/${repoStr}`,
+              ErrorCode.INTERNAL_ERROR,
+            );
+          }
+        } else if (repositoryIndexer.needsIndexing(metadata)) {
+          // If metadata exists but is outdated, reindex
+          await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
+          // Get the updated metadata
+          metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+        }
 
         return {
           contents: [
@@ -65,14 +80,17 @@ export function registerRepositoryResources(server: McpServer): void {
           throw new AppError(`Repository ${ownerStr}/${repoStr} not found`, ErrorCode.NOT_FOUND);
         }
 
-        // Ensure repository is indexed
-        const needsIndexing = await repositoryIndexer.needsIndexing(ownerStr, repoStr);
-        if (needsIndexing) {
+        // Create repository ID
+        const repoId = `${ownerStr}/${repoStr}`;
+
+        // Check if repository needs indexing
+        let metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+
+        if (!metadata || repositoryIndexer.needsIndexing(metadata)) {
           await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
         }
 
-        // Get file content using findContentByPath since that's the appropriate method
-        const repoId = `${ownerStr}/${repoStr}`;
+        // Get file content using findContentByPath
         const content = await repositoryStorage.findContentByPath(repoId, pathStr);
 
         if (!content) {
@@ -86,7 +104,7 @@ export function registerRepositoryResources(server: McpServer): void {
           contents: [
             {
               uri: uri.href,
-              text: content.content,
+              text: content.content || '',
             },
           ],
         };
@@ -113,29 +131,34 @@ export function registerRepositoryResources(server: McpServer): void {
           throw new AppError(`Repository ${ownerStr}/${repoStr} not found`, ErrorCode.NOT_FOUND);
         }
 
-        // Ensure repository is indexed
-        const needsIndexing = await repositoryIndexer.needsIndexing(ownerStr, repoStr);
-        if (needsIndexing) {
+        // Create repository ID
+        const repoId = `${ownerStr}/${repoStr}`;
+
+        // Check if repository needs indexing
+        let metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+
+        if (!metadata || repositoryIndexer.needsIndexing(metadata)) {
           await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
         }
 
         // Get all content using listRepositoryContent
-        const repoId = `${ownerStr}/${repoStr}`;
         const contents = await repositoryStorage.listRepositoryContent(repoId);
+
+        // Map to a format suitable for response, handling null/undefined values
+        const fileList = contents.map((c: RepositoryContent) => ({
+          path: c.path,
+          // Use optional chaining and nullish coalescing for safe access
+          language: c.metadata?.language || 'unknown',
+          // Ensure content exists before checking length
+          size: c.content ? c.content.length : 0,
+          type: c.type,
+        }));
 
         return {
           contents: [
             {
               uri: uri.href,
-              text: JSON.stringify(
-                contents.map((c) => ({
-                  path: c.path,
-                  language: c.language,
-                  size: c.content.length,
-                })),
-                null,
-                2,
-              ),
+              text: JSON.stringify(fileList, null, 2),
             },
           ],
         };

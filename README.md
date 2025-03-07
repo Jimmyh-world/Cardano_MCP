@@ -28,9 +28,21 @@ The Cardano Model Context Protocol (MCP) Server is a specialized gateway that si
 ```
 src/
 ├── server/           # MCP Server implementation
-│   └── mcpServer.ts  # CardanoMcpServer class
+│   ├── mcpServer.ts  # CardanoMcpServer class
+│   ├── integrations/ # Module integration
+│   ├── resources/    # MCP resources
+│   ├── tools/        # MCP tools
+│   └── prompts/      # MCP prompts
 ├── knowledge/        # Documentation and knowledge base
-│   └── processors/   # Documentation parser and fetcher
+│   └── processors/   # Documentation processors
+├── repositories/     # Repository indexing module
+│   ├── configs/      # Repository configurations
+│   ├── processors/   # Repository content processors
+│   ├── githubClient.ts # GitHub API client
+│   ├── indexer.ts    # Repository indexer
+│   ├── registry.ts   # Repository registry
+│   ├── storage.ts    # Content storage
+│   └── types.ts      # Type definitions
 ├── types/            # Type definitions
 ├── utils/            # Utility functions
 │   └── errors/       # Error handling system
@@ -40,7 +52,7 @@ src/
 │       └── types/    # Error type definitions
 ├── tools/            # Development tools and utilities
 ├── prompts/          # Prompt templates and configurations
-└── index.mcp.ts      # MCP server entry point
+└── index.ts          # MCP server entry point
 ```
 
 ## Technology Stack
@@ -77,24 +89,27 @@ npm install
 npm run build
 
 # Start the MCP server with stdio transport
-npm run start:mcp
+npm start
 
 # Start the MCP server with SSE transport
-npm run start:mcp:sse
+npm run start:sse
 ```
 
 ### Testing
 
-The project uses Jest for testing with a modular configuration approach. Tests are organized into several categories:
+The project uses Jest for testing with a modular configuration approach. Tests are organized by module and type:
 
-- **Knowledge Tests**: Tests related to documentation processing, parsing, and knowledge extraction
-- **Repository Tests**: Tests for repository management, indexing, and storage
-- **Error Handling Tests**: Tests for error factories, retry mechanisms, and application errors
-- **Server Integration Tests**: Tests for the MCP server API and WebSocket functionality
+- **Unit Tests**: Located in `tests/unit/`
+
+  - `knowledge/`: Tests for the knowledge module components
+  - `repositories/`: Tests for the repository indexing module
+  - `utils/`: Tests for utility functions, including error handling
+  - `server/`: Tests for server components
+
+- **Integration Tests**: Located in `tests/integration/`
+  - Tests that verify the interaction between multiple components
 
 ### Running Tests
-
-You can run specific test categories using the following commands:
 
 ```bash
 # Run all tests
@@ -115,14 +130,13 @@ npm run test:debug
 
 For comprehensive documentation on testing, see [TESTING.md](./TESTING.md).
 
-Each test category has its own configuration file:
+We use specialized Jest configurations for different test categories:
 
-- `jest.knowledge.config.js` - Configuration for knowledge tests
-- `jest.repository.config.js` - Configuration for repository tests
-- `jest.errors.config.js` - Configuration for error handling tests
-- `jest.server.config.js` - Configuration for server integration tests
-
-The main `jest.config.js` uses Jest's projects feature to combine all configurations.
+- `jest.base.config.js`: Base configuration shared by all test suites
+- `jest.knowledge.config.js`: Configuration for knowledge module tests
+- `jest.repository.config.js`: Configuration for repository module tests
+- `jest.server.config.js`: Configuration for server integration tests
+- `jest.errors.config.js`: Configuration for error handling tests
 
 ## Usage Examples
 
@@ -134,6 +148,19 @@ const docs = await client.readResource('docs://blockfrost/api');
 
 // Get smart contract security patterns
 const patterns = await client.readResource('docs://cardano/contracts/security');
+```
+
+### Repository Access
+
+```typescript
+// Access a GitHub repository README
+const readme = await client.readResource('repository://input-output-hk/cardano-node');
+
+// Get a specific file from a repository
+const file = await client.readResource('repository://input-output-hk/cardano-node/file/README.md');
+
+// List files in a repository
+const files = await client.readResource('repository://input-output-hk/cardano-node/files');
 ```
 
 ### Wallet Integration
@@ -177,9 +204,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Modules
 
+### Knowledge Module
+
+The Knowledge module provides functionality for processing and accessing documentation from various sources. It includes components for fetching, parsing, validating, and extracting structured content from HTML and Markdown documents.
+
+Key features:
+
+- HTML validation and cleaning
+- Section extraction and metadata generation
+- Markdown processing
+- Error handling with retry capabilities
+
 ### Repositories Module
 
-A new Repositories module has been added to provide functionality for indexing, querying, and managing GitHub repositories. This module enables the retrieval and processing of repository content, making it available for context-aware operations.
+The Repositories module provides functionality for indexing, querying, and managing GitHub repositories. This module enables the retrieval and processing of repository content, making it available for context-aware operations.
 
 Key features:
 
@@ -195,3 +233,14 @@ Additional documentation:
 - [Integration Guide](docs/repositories/INTEGRATION.md)
 - [Testing Guide](docs/repositories/TESTING.md)
 - [Test Configuration](docs/repositories/TEST_CONFIGURATION.md)
+
+### Error Handling System
+
+The Error Handling system provides a comprehensive approach to managing errors throughout the application. It includes specialized error classes, factories for creating domain-specific errors, and handlers for common error scenarios.
+
+Key features:
+
+- AppError base class with serialization support
+- Error factories for different domains (network, documentation, etc.)
+- Retry handler with configurable retry logic
+- Consistent error codes and status codes

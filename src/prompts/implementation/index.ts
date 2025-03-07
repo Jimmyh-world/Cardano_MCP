@@ -8,8 +8,6 @@ import {
   PromptEvent,
   McpResponse,
   ToolConfiguration,
-  McpRequest,
-  SecurityRequest,
 } from '../../types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -18,6 +16,13 @@ import WebSocket from 'ws';
 import { execSync } from 'child_process';
 import config from './config.json';
 import { validateConfig } from './connection';
+
+// Define interfaces for internal use
+interface McpRequest {
+  tools?: any[];
+  script?: string;
+  [key: string]: any;
+}
 
 /**
  * Implementation of the Cardano MCP Server Prompt System

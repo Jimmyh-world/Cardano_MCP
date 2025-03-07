@@ -1,5 +1,11 @@
 import { AxiosError } from 'axios';
-import { AppError, ErrorCode, ErrorFactory, ErrorHandler } from '../../../src/utils/errors';
+import {
+  AppError,
+  ErrorCode,
+  ErrorFactory,
+  ErrorHandler,
+  NetworkErrorFactory,
+} from '../../../src/utils/errors';
 
 describe('Error Handling System', () => {
   describe('AppError', () => {
@@ -38,14 +44,14 @@ describe('Error Handling System', () => {
     });
   });
 
-  describe('ErrorFactory', () => {
+  describe('NetworkErrorFactory', () => {
     it('should create a 404 error from axios error', () => {
       const axiosError = new Error('Not found') as AxiosError;
       axiosError.isAxiosError = true;
       axiosError.response = { status: 404 } as any;
       axiosError.config = { url: 'http://test.com' } as any;
 
-      const error = ErrorFactory.fromAxiosError(axiosError);
+      const error = NetworkErrorFactory.fromAxiosError(axiosError);
       expect(error.code).toBe(ErrorCode.NOT_FOUND);
       expect(error.statusCode).toBe(404);
       expect(error.message).toContain('http://test.com');
@@ -56,7 +62,7 @@ describe('Error Handling System', () => {
       axiosError.isAxiosError = true;
       axiosError.code = 'ECONNABORTED';
 
-      const error = ErrorFactory.fromAxiosError(axiosError);
+      const error = NetworkErrorFactory.fromAxiosError(axiosError);
       expect(error.code).toBe(ErrorCode.TIMEOUT);
       expect(error.statusCode).toBe(408);
     });
@@ -66,11 +72,13 @@ describe('Error Handling System', () => {
       axiosError.isAxiosError = true;
       axiosError.response = { status: 503 } as any;
 
-      const error = ErrorFactory.fromAxiosError(axiosError);
+      const error = NetworkErrorFactory.fromAxiosError(axiosError);
       expect(error.code).toBe(ErrorCode.SERVER_ERROR);
       expect(error.statusCode).toBe(503);
     });
+  });
 
+  describe('ErrorFactory', () => {
     it('should create documentation fetch error', () => {
       const originalError = new Error('Network error');
       const error = ErrorFactory.documentationFetchError('Failed to fetch docs', originalError, {

@@ -1,7 +1,4 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
-const baseConfig = require('./jest.base.config');
-
-// Main Jest configuration using projects for different test categories
 module.exports = {
   // Use Jest projects feature to run different test suites with different configurations
   projects: [
@@ -10,13 +7,15 @@ module.exports = {
     '<rootDir>/jest.server.config.js',
     '<rootDir>/jest.errors.config.js',
   ],
-  // Global options that apply to all projects
-  ...baseConfig,
+  // Global options
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  setupFiles: ['<rootDir>/jest.setup.js'],
   // When running the default Jest command, set default timeout
   testTimeout: 20000,
-  // Don't collect coverage when running all projects
-  // (individual projects will collect their own coverage)
+  verbose: true,
   collectCoverage: false,
   // Display summary information
-  verbose: true,
+  forceExit: true,
+  detectOpenHandles: true,
 };

@@ -22,7 +22,7 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  // Add forceExit to handle Jest not exiting properly
+  // Force Jest to exit properly
   forceExit: true,
   // Config to detect open handles and leaks
   detectOpenHandles: true,

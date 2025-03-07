@@ -1,97 +1,113 @@
-# Testing Documentation for Cardano MCP
+# Testing Guide for Cardano MCP
 
-This document explains the testing architecture, configurations, and best practices for the Cardano Model Context Protocol (MCP) project.
+This document provides an overview of the testing infrastructure and guidelines for the Cardano MCP project.
 
-## Test Organization
+## Test Structure
 
-Tests in this project are organized into several categories:
+Tests are organized by module and type:
 
-1. **Knowledge Tests** - Tests for documentation processing, fetching, and knowledge extraction
-2. **Repository Tests** - Tests for repository management, indexing, and GitHub integration
-3. **Error Handling Tests** - Tests for error factories, retry mechanisms, and application errors
-4. **Server Integration Tests** - Tests for the MCP server API and WebSocket functionality
+- **Unit Tests**: Located in `tests/unit/`
 
-## Test Configuration
+  - `knowledge/`: Tests for the knowledge module components
+  - `repositories/`: Tests for the repository indexing module
+  - `utils/`: Tests for utility functions, including error handling
+  - `server/`: Tests for server components
 
-We use a modular Jest configuration approach based on a base configuration that's extended by specialized configurations for each test category.
+- **Integration Tests**: Located in `tests/integration/`
+  - Tests that verify the interaction between multiple components
 
-### Base Configuration (`jest.base.config.js`)
+## Test Configurations
 
-The base configuration provides common settings for all test categories:
+We use specialized Jest configurations for different test categories:
 
-- TypeScript handling via ts-jest
-- Environment setup
-- Coverage collection and reporting
-- Performance optimizations
-
-### Specialized Configurations
-
-Each test category has its own configuration file that extends the base configuration:
-
-#### Knowledge Tests (`jest.knowledge.config.js`)
-
-- No mock server setup
-- Targets files at `**/tests/unit/knowledge/**/*.test.ts`
-- Higher coverage thresholds (90-95%)
-
-#### Repository Tests (`jest.repository.config.js`)
-
-- No mock server setup
-- Targets files at `**/tests/unit/repositories/**/*.test.ts`
-- Simplified TypeScript handling
-
-#### Error Handling Tests (`jest.errors.config.js`)
-
-- No mock server setup
-- Targets files at `**/tests/unit/utils/errors/**/*.test.ts`
-- Higher branch coverage thresholds (85%)
-
-#### Server Tests (`jest.server.config.js`)
-
-- Includes mock server setup
-- Targets files at `**/tests/integration/**/*.test.ts`
-- Longer timeouts (30s) for integration tests
-
-### Main Configuration (`jest.config.js`)
-
-The main configuration uses Jest's projects feature to combine all specialized configurations. When running `npm test`, all test categories will be executed with their respective configurations.
+- `jest.base.config.js`: Base configuration shared by all test suites
+- `jest.knowledge.config.js`: Configuration for knowledge module tests
+- `jest.repository.config.js`: Configuration for repository module tests
+- `jest.server.config.js`: Configuration for server integration tests
+- `jest.errors.config.js`: Configuration for error handling tests
+- `jest.repository.standalone.js`: Standalone configuration for repository tests without mock server
+- `jest.errors.standalone.js`: Standalone configuration for the legacy error tests
 
 ## Running Tests
 
-You can run tests using the npm scripts defined in `package.json`:
+### Running All Tests
 
 ```bash
-# Run all tests
 npm test
+```
 
-# Run tests with coverage report
-npm run test:coverage
+### Running Specific Test Suites
 
-# Run specific test categories
+```bash
+# Run knowledge module tests
 npm run test:knowledge
+
+# Run repository module tests
 npm run test:repository
-npm run test:errors
+
+# Run server tests
 npm run test:server
 
-# Run tests in debug mode (with Node inspector)
-npm run test:debug
+# Run error handling tests
+npm run test:errors
 ```
+
+### Running Individual Test Files
+
+```bash
+# Run a specific test file
+npx jest path/to/test/file.test.ts
+
+# Run tests matching a pattern
+npx jest --testNamePattern="pattern"
+```
+
+## Mock Server
+
+Some tests require a mock server for integration testing. The mock server is automatically started and stopped by the test setup.
+
+- The mock server is defined in `src/mock/mock-server.ts`
+- Server setup and teardown is handled in `tests/setup.ts`
+- The server runs on ports 3000 (HTTP) and 3001 (WebSocket)
+
+If you encounter issues with the mock server:
+
+1. Ensure no other processes are using ports 3000 and 3001
+2. Check the server logs for any errors
+3. Increase the server startup timeout if needed (set `SERVER_STARTUP_TIMEOUT` environment variable)
+
+## Test Coverage
+
+We aim for high test coverage across all modules:
+
+- **Knowledge Module**: 95% statement, 90% branch coverage
+- **Repository Module**: 80% statement, 80% branch coverage
+- **Error Handling**: 90% statement, 85% branch coverage
+- **Server**: 80% statement, 75% branch coverage
+
+To view test coverage:
+
+```bash
+npm run test:coverage
+```
+
+Coverage reports are generated in the `coverage/` directory.
 
 ## Writing Tests
 
-When writing new tests, follow these guidelines:
+### Guidelines
 
-1. Place your test file in the appropriate directory based on category
-2. Use descriptive test names that explain the behavior being tested
-3. Group related tests using `describe` blocks
-4. Mock external dependencies using Jest's mocking capabilities
-5. Tests should be independent and not rely on the state from other tests
+1. **Test Organization**: Group tests logically using `describe` and `it` blocks
+2. **Test Isolation**: Each test should be independent and not rely on the state from other tests
+3. **Mocking**: Use Jest's mocking capabilities to isolate components
+4. **Error Cases**: Test both success and error cases
+5. **Edge Cases**: Include tests for edge cases and boundary conditions
 
 ### Example Test Structure
 
 ```typescript
-describe('FeatureName', () => {
-  // Setup and teardown
+describe('ComponentName', () => {
+  // Setup that applies to all tests
   beforeEach(() => {
     // Setup code
   });
@@ -101,48 +117,59 @@ describe('FeatureName', () => {
   });
 
   describe('methodName', () => {
-    test('should behave in a certain way given certain input', () => {
+    it('should do something when condition is met', () => {
       // Test code
       expect(result).toBe(expectedValue);
     });
 
-    test('should handle edge case properly', () => {
-      // Test code
-      expect(result).toThrow(ExpectedError);
+    it('should handle errors appropriately', () => {
+      // Test error case
+      expect(() => method()).toThrow(ErrorType);
     });
   });
 });
 ```
 
-## Coverage Thresholds
-
-Different modules have different coverage thresholds based on criticality:
-
-- **Knowledge module**: 90% branches, 95% functions/lines/statements
-- **Error handling**: 85% branches, 90% functions/lines/statements
-- **Repository module**: Standard thresholds (80%)
-- **Server integration**: Slightly lower thresholds due to integration complexity (75%)
-
-## Mock Server
-
-For integration tests, we use a mock server that emulates the actual MCP server. The mock server is automatically started and stopped during the server test suite execution. It provides:
-
-- HTTP endpoints at port 3000
-- WebSocket server at port 3001
-
-The setup and teardown logic is in `tests/setup.ts`.
-
-## Best Practices
-
-1. **Keep Tests Fast**: Tests should run quickly to maintain rapid feedback cycles
-2. **Keep Tests Independent**: Each test should work in isolation
-3. **Descriptive Test Names**: Use descriptive names that explain the behavior
-4. **Use Mocks Appropriately**: Mock external dependencies but not the system under test
-5. **Test Edge Cases**: Ensure your tests cover error cases and edge conditions
-6. **Maintain Coverage**: Keep high test coverage for critical modules
-
 ## Troubleshooting
 
-- **Tests Hanging**: Often due to unhandled async operations or open handles
-- **Mock Server Port Conflicts**: If you see EADDRINUSE errors, another process is using ports 3000/3001
-- **TypeScript Errors**: Usually resolved by ensuring the tsconfig used by tests is properly configured
+### Jest Not Exiting
+
+If Jest doesn't exit properly after tests complete, it may be due to:
+
+1. Asynchronous operations that aren't properly closed
+2. Open handles (timers, connections, etc.)
+3. Mock server not shutting down correctly
+
+To debug:
+
+```bash
+npx jest --detectOpenHandles
+```
+
+### Server Startup Timeout
+
+If tests fail with "Server startup timeout", try:
+
+1. Increasing the timeout: `SERVER_STARTUP_TIMEOUT=10000 npm test`
+2. Checking if the mock server ports are in use
+3. Examining the server logs for errors
+
+## Continuous Integration
+
+Tests are automatically run in CI for:
+
+1. Pull requests to main branch
+2. Direct commits to main branch
+
+The CI pipeline enforces:
+
+1. All tests passing
+2. Coverage thresholds met
+3. No TypeScript errors
+4. No linting errors
+
+## Test Dependencies
+
+- **Jest**: Testing framework
+- **ts-jest**: TypeScript support for Jest
+- **@types/jest**: TypeScript definitions for Jest
