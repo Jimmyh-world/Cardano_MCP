@@ -1,20 +1,27 @@
 import express from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import { McpResponse } from '../types';
+import { createServer } from 'http';
 
 const app = express();
 const port = parseInt(process.env.HTTP_PORT || '3000', 10);
-const wsPort = parseInt(process.env.WS_PORT || '3001', 10);
 
-// Track server state
+// Track server state and connections
 const serverState = {
   httpReady: false,
   wsReady: false,
   startTime: Date.now(),
+  httpServer: null as any,
+  wsServer: null as WebSocketServer | null,
+  connections: new Set<WebSocket>(),
+  cleanupInProgress: false,
 };
 
-// Create WebSocket server
-const wss = new WebSocketServer({ port: wsPort });
+// Create HTTP server
+serverState.httpServer = createServer(app);
+
+// Create WebSocket server attached to HTTP server
+serverState.wsServer = new WebSocketServer({ server: serverState.httpServer });
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -84,106 +91,137 @@ app.post('/v1/execute', (req, res) => {
   };
 
   // Notify all connected clients about the execution
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(
-        JSON.stringify({
-          type: 'update',
-          data: {
-            tool: 'validatePlutusScript',
-            status: 'running',
-          },
-        }),
-      );
-    }
+  if (serverState.wsServer && !serverState.cleanupInProgress) {
+    serverState.connections.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(
+          JSON.stringify({
+            type: 'update',
+            data: {
+              tool: 'validatePlutusScript',
+              status: 'running',
+            },
+          }),
+        );
+      }
+    });
+  }
+
+  // Send response immediately
+  res.json(mockResponse);
+});
+
+// WebSocket connection handling
+if (serverState.wsServer) {
+  serverState.wsServer.on('connection', (ws: WebSocket) => {
+    console.log('Client connected to WebSocket');
+    serverState.connections.add(ws);
+
+    // Send initial connection success message
+    ws.send(
+      JSON.stringify({
+        type: 'connection',
+        data: {
+          status: 'connected',
+          timestamp: Date.now(),
+        },
+      }),
+    );
+
+    // Send mock updates
+    const interval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN && !serverState.cleanupInProgress) {
+        ws.send(
+          JSON.stringify({
+            type: 'update',
+            data: {
+              tool: 'validatePlutusScript',
+              status: 'running',
+            },
+          }),
+        );
+      }
+    }, 2000);
+
+    ws.on('close', () => {
+      clearInterval(interval);
+      serverState.connections.delete(ws);
+      console.log('Client disconnected');
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clearInterval(interval);
+      serverState.connections.delete(ws);
+    });
   });
 
-  // Simulate processing delay
-  setTimeout(() => {
-    res.json(mockResponse);
-  }, 500);
-});
+  // When WebSocket server is ready
+  serverState.wsServer.on('listening', () => {
+    serverState.wsReady = true;
+    console.log('WebSocket server ready');
+
+    // Log ready state if both servers are ready
+    if (serverState.httpReady && serverState.wsReady) {
+      console.log('SERVERS_READY=true');
+    }
+  });
+}
 
 // Graceful shutdown handler
 const gracefulShutdown = () => {
+  if (serverState.cleanupInProgress) {
+    return;
+  }
+
   console.log('Shutting down servers gracefully...');
+  serverState.cleanupInProgress = true;
 
-  // Close the WebSocket server first
-  wss.close(() => {
-    console.log('WebSocket server closed');
+  // Close all WebSocket connections
+  serverState.connections.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.close();
+    }
+  });
+  serverState.connections.clear();
 
-    // Then close the HTTP server
-    httpServer.close(() => {
+  // Close the WebSocket server
+  if (serverState.wsServer) {
+    serverState.wsServer.close(() => {
+      console.log('WebSocket server closed');
+
+      // Then close the HTTP server
+      if (serverState.httpServer) {
+        serverState.httpServer.close(() => {
+          console.log('HTTP server closed');
+          process.exit(0);
+        });
+      } else {
+        process.exit(0);
+      }
+    });
+  } else if (serverState.httpServer) {
+    serverState.httpServer.close(() => {
       console.log('HTTP server closed');
       process.exit(0);
     });
+  } else {
+    process.exit(0);
+  }
 
-    // Force exit after timeout
-    setTimeout(() => {
-      console.log('Forcing exit after shutdown timeout');
-      process.exit(1);
-    }, 5000);
-  });
+  // Force exit after timeout
+  setTimeout(() => {
+    console.log('Forcing exit after shutdown timeout');
+    process.exit(1);
+  }, 5000);
 };
 
 // Register shutdown handlers
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// WebSocket connection handling
-wss.on('connection', (ws: WebSocket) => {
-  console.log('Client connected to WebSocket');
-
-  // Send initial connection success message
-  ws.send(
-    JSON.stringify({
-      type: 'connection',
-      data: {
-        status: 'connected',
-        timestamp: Date.now(),
-      },
-    }),
-  );
-
-  // Send mock updates
-  const interval = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: 'update',
-          data: {
-            tool: 'validatePlutusScript',
-            status: 'running',
-          },
-        }),
-      );
-    }
-  }, 2000);
-
-  ws.on('close', () => {
-    clearInterval(interval);
-    console.log('Client disconnected');
-  });
-
-  ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
-    clearInterval(interval);
-  });
-});
-
-// When WebSocket server is ready
-wss.on('listening', () => {
-  serverState.wsReady = true;
-  console.log(`WebSocket server ready at ws://localhost:${wsPort}`);
-
-  // Log ready state if both servers are ready
-  if (serverState.httpReady && serverState.wsReady) {
-    console.log('SERVERS_READY=true');
-  }
-});
-
-// Start the HTTP server
-const httpServer = app.listen(port, () => {
+// Start the server
+serverState.httpServer.listen(port, () => {
   serverState.httpReady = true;
   console.log(`Mock MCP HTTP server ready at http://localhost:${port}`);
 

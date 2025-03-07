@@ -15,6 +15,16 @@ module.exports = {
       statements: 95,
     },
   },
+  // Only collect coverage for knowledge module
+  collectCoverageFrom: [
+    'src/knowledge/**/*.ts',
+    '!src/knowledge/**/*.d.ts',
+    '!src/knowledge/**/index.ts',
+  ],
+  // Custom reporter for detailed coverage info
+  coverageReporters: [...baseConfig.coverageReporters, 'html'],
+  // Knowledge tests are unit tests, no need for long timeouts
+  testTimeout: 5000,
   // Custom display name
   displayName: 'Knowledge',
 };

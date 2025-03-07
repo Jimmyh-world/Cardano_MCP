@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { resolve } from 'path';
 import net from 'net';
+import axios from 'axios';
 
 // Configurable timeout with env var and longer default
 const SERVER_STARTUP_TIMEOUT_MS = parseInt(process.env.SERVER_STARTUP_TIMEOUT || '15000', 10);
@@ -34,17 +35,13 @@ const createTimeout = (ms: number, message: string): Promise<never> => {
 };
 
 /**
- * Attempts to connect to a server with exponential backoff
- * @param port Port to connect to
- * @param maxAttempts Maximum number of connection attempts
- * @param baseDelay Base delay between attempts (will be multiplied by 1.5^attempt)
+ * Waits for the server to be ready by checking the /ready endpoint
  */
-const waitForServer = async (
-  port: number,
+const waitForServerReady = async (
   maxAttempts: number = 10,
   baseDelay: number = SERVER_STARTUP_CHECK_INTERVAL_MS,
 ): Promise<void> => {
-  console.log(`Waiting for server on port ${port}...`);
+  console.log('Waiting for server to be ready...');
 
   let attempt = 0;
   const startTime = Date.now();
@@ -54,71 +51,26 @@ const waitForServer = async (
     const delay = baseDelay * Math.pow(1.5, attempt - 1);
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        console.log(`Attempt ${attempt}/${maxAttempts} to connect to port ${port}`);
-        const socket = new net.Socket();
-        let socketClosed = false;
-
-        // Add socket to open handles
-        const handleIndex =
-          openHandles.push({
-            type: 'socket',
-            handle: socket,
-            close: () => {
-              if (!socketClosed) {
-                socketClosed = true;
-                socket.destroy();
-              }
-            },
-          }) - 1;
-
-        // Handle connection errors
-        socket.on('error', (err) => {
-          socketClosed = true;
-          socket.destroy();
-          openHandles.splice(handleIndex, 1);
-          reject(err);
-        });
-
-        // Handle successful connection
-        socket.connect(port, 'localhost', () => {
-          socketClosed = true;
-          socket.destroy();
-          openHandles.splice(handleIndex, 1);
-          console.log(`Successfully connected to server on port ${port}`);
-          resolve();
-        });
-
-        // Set a timeout for this specific connection attempt
-        setTimeout(() => {
-          if (!socketClosed) {
-            socketClosed = true;
-            socket.destroy();
-            openHandles.splice(handleIndex, 1);
-            reject(new Error(`Connection attempt ${attempt} timed out`));
-          }
-        }, delay);
-      });
-
-      // If we get here, connection was successful
-      return;
+      const response = await axios.get('http://localhost:3000/ready');
+      if (response.data.ready) {
+        console.log('Server is ready');
+        return;
+      }
+      console.log('Server not ready yet, waiting...');
     } catch (err) {
       const elapsed = Date.now() - startTime;
-      // Check if we've exceeded the overall timeout
       if (elapsed > SERVER_STARTUP_TIMEOUT_MS) {
-        throw new Error(
-          `Server startup timeout after ${elapsed}ms waiting for port ${port}. Last error: ${err}`,
-        );
+        throw new Error(`Server startup timeout after ${elapsed}ms. Last error: ${err}`);
       }
 
-      console.log(`Connection attempt ${attempt} failed: ${err}. Retrying in ${delay}ms...`);
-
-      // Wait before next attempt
+      console.log(
+        `Server not ready (attempt ${attempt}/${maxAttempts}). Retrying in ${delay}ms...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  throw new Error(`Failed to connect to server on port ${port} after ${maxAttempts} attempts`);
+  throw new Error(`Server failed to become ready after ${maxAttempts} attempts`);
 };
 
 /**
@@ -133,6 +85,15 @@ const cleanupHandles = () => {
       try {
         console.log(`Closing handle of type ${handle.type}`);
         handle.close();
+
+        // Force destroy for sockets
+        if (
+          handle.type === 'socket' &&
+          handle.handle &&
+          typeof handle.handle.destroy === 'function'
+        ) {
+          handle.handle.destroy();
+        }
       } catch (err) {
         console.error(`Error closing handle of type ${handle.type}:`, err);
       }
@@ -141,22 +102,18 @@ const cleanupHandles = () => {
     // Clear the handles array
     openHandles = [];
   }
-};
 
-/**
- * Helper function to forcibly kill the mock server
- */
-const forceKillServer = () => {
+  // Force cleanup of any remaining handles
   if (mockServer) {
-    console.log('Forcibly killing mock server...');
-
     try {
-      // On POSIX systems, -9 is SIGKILL which cannot be caught or ignored
-      process.kill(mockServer.pid as number, 'SIGKILL');
-    } catch (error) {
-      console.error('Error forcibly killing mock server:', error);
-    } finally {
-      mockServer = null;
+      // Close stdin/stdout/stderr
+      ['stdin', 'stdout', 'stderr'].forEach((stream) => {
+        if (mockServer && mockServer[stream]) {
+          mockServer[stream].destroy();
+        }
+      });
+    } catch (err) {
+      console.error('Error cleaning up server streams:', err);
     }
   }
 };
@@ -174,9 +131,23 @@ export const stopMockServer = async (): Promise<void> => {
 
   try {
     // First try to gracefully stop the server
-    mockServer.kill('SIGTERM');
+    if (process.platform === 'win32') {
+      mockServer.kill('SIGTERM');
+    } else if (mockServer.pid !== undefined) {
+      try {
+        process.kill(-mockServer.pid, 'SIGTERM');
+      } catch (error) {
+        // If process group kill fails, try direct process kill
+        try {
+          process.kill(mockServer.pid, 'SIGTERM');
+        } catch (innerError) {
+          console.error('Error killing server process:', innerError);
+        }
+      }
+    }
 
     // Wait for server to exit or force kill after timeout
+    let shutdownTimeout: NodeJS.Timeout;
     await Promise.race([
       new Promise<void>((resolve) => {
         if (mockServer) {
@@ -190,11 +161,32 @@ export const stopMockServer = async (): Promise<void> => {
         }
       }),
       new Promise<void>((_, reject) => {
-        setTimeout(() => {
-          console.log('Mock server exit timeout, forcing kill');
-          forceKillServer();
+        shutdownTimeout = setTimeout(() => {
+          if (mockServer) {
+            console.log('Mock server exit timeout, forcing kill');
+            try {
+              if (process.platform === 'win32') {
+                mockServer.kill('SIGKILL');
+              } else if (mockServer.pid !== undefined) {
+                try {
+                  process.kill(-mockServer.pid, 'SIGKILL');
+                } catch (error) {
+                  process.kill(mockServer.pid, 'SIGKILL');
+                }
+              }
+            } catch (error) {
+              console.error('Error during force kill:', error);
+            }
+            mockServer = null;
+          }
           reject(new Error('Mock server exit timeout'));
         }, SERVER_SHUTDOWN_TIMEOUT_MS);
+        // Store the timeout in open handles for cleanup
+        openHandles.push({
+          type: 'shutdown-timeout',
+          handle: shutdownTimeout,
+          close: () => clearTimeout(shutdownTimeout),
+        });
       }).catch(() => {
         // Convert rejection to resolution after force kill
         return Promise.resolve();
@@ -202,7 +194,14 @@ export const stopMockServer = async (): Promise<void> => {
     ]);
   } catch (error) {
     console.error('Error stopping mock server:', error);
-    forceKillServer();
+    if (mockServer) {
+      try {
+        mockServer.kill('SIGKILL');
+      } catch (killError) {
+        console.error('Error during final kill attempt:', killError);
+      }
+      mockServer = null;
+    }
   } finally {
     // Always clean up handles regardless of how the server was stopped
     cleanupHandles();
@@ -247,13 +246,10 @@ beforeAll(async () => {
       `Server startup timeout after ${SERVER_STARTUP_TIMEOUT_MS}ms. Server output: ${serverOutput}`,
     );
 
-    // Wait for both HTTP and WebSocket servers with timeout
-    await Promise.race([
-      Promise.all([waitForServer(HTTP_PORT), waitForServer(WS_PORT)]),
-      timeoutPromise,
-    ]);
+    // Wait for server to be ready
+    await Promise.race([waitForServerReady(), timeoutPromise]);
 
-    // Clean up the timeout since servers are ready
+    // Clean up the timeout since server is ready
     cleanupHandles();
 
     console.log('Mock server started successfully');
@@ -285,82 +281,7 @@ beforeAll(async () => {
 console.log('Cleaning up for Jest exit...');
 
 // Clear up after all tests
-afterAll((done) => {
+afterAll(async () => {
   console.log('Shutting down mock server...');
-
-  const shutdownTimeout = setTimeout(() => {
-    console.error(`Server shutdown timed out after ${SERVER_SHUTDOWN_TIMEOUT_MS}ms`);
-
-    // Force cleanup of any remaining handles
-    cleanupHandles();
-
-    // Kill the server if it's still running
-    if (mockServer) {
-      console.log('Forcefully terminating server process with SIGKILL');
-      try {
-        if (process.platform === 'win32') {
-          mockServer.kill('SIGKILL');
-        } else if (mockServer.pid !== undefined) {
-          try {
-            process.kill(-mockServer.pid, 'SIGKILL');
-          } catch (error) {
-            // Just log errors, don't prevent test completion
-            console.error('Error killing server process:', error);
-          }
-        }
-      } catch (error) {
-        console.error('Error during force kill:', error);
-      } finally {
-        mockServer = null;
-        done();
-      }
-    } else {
-      done();
-    }
-  }, SERVER_SHUTDOWN_TIMEOUT_MS);
-
-  // Clean function to be called when server exits or on timeout
-  const cleanup = () => {
-    clearTimeout(shutdownTimeout);
-    mockServer = null;
-    cleanupHandles();
-    done();
-  };
-
-  if (mockServer) {
-    // Register exit handler before sending signal
-    mockServer.on('exit', () => {
-      console.log('Mock server process exited');
-      cleanup();
-    });
-
-    try {
-      // Try to terminate gracefully first
-      if (process.platform === 'win32') {
-        mockServer.kill();
-      } else if (mockServer.pid !== undefined) {
-        console.log(`Sending SIGTERM to process group ${-mockServer.pid}`);
-        try {
-          process.kill(-mockServer.pid, 'SIGTERM');
-        } catch (error) {
-          console.error('Error sending SIGTERM:', error);
-          // Try to kill just the process if we can't kill the group
-          try {
-            mockServer.kill();
-          } catch (innerError) {
-            console.error('Error killing server directly:', innerError);
-          }
-        }
-      } else {
-        // Fallback to direct kill if no PID
-        mockServer.kill();
-      }
-    } catch (error) {
-      console.error('Error shutting down server:', error);
-      cleanup(); // Ensure cleanup happens even if shutdown fails
-    }
-  } else {
-    console.log('No mock server to shut down');
-    cleanup();
-  }
+  await stopMockServer();
 });

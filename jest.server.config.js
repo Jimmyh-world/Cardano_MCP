@@ -1,23 +1,22 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
-const baseConfig = require('./jest.base.config');
+const integrationConfig = require('./jest.integration.config');
 
 // Server integration tests configuration
 module.exports = {
-  ...baseConfig,
-  testMatch: ['**/tests/integration/**/*.test.ts'],
-  // Setup for the mock server - we need this for integration tests
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
-  // Longer timeout for server tests
-  testTimeout: 30000,
-  // Server tests often need more time
+  ...integrationConfig,
+  // Server-specific test matching
+  testMatch: ['**/tests/integration/mcp-server.test.ts'],
+  // Higher coverage thresholds for server code
   coverageThreshold: {
     global: {
-      branches: 75, // Lower threshold for complex server integration cases
-      functions: 80,
-      lines: 80,
-      statements: 80,
+      branches: 90,
+      functions: 90,
+      lines: 95,
+      statements: 95,
     },
   },
+  // Only collect coverage for server code
+  collectCoverageFrom: ['src/server/**/*.ts', '!src/server/**/*.d.ts', '!src/server/**/index.ts'],
   // Custom display name
   displayName: 'Server',
 };

@@ -84,7 +84,7 @@ export function registerRepositoryResources(server: McpServer): void {
         const repoId = `${ownerStr}/${repoStr}`;
 
         // Check if repository needs indexing
-        let metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+        const metadata = await repositoryStorage.getRepositoryMetadata(repoId);
 
         if (!metadata || repositoryIndexer.needsIndexing(metadata)) {
           await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
@@ -135,7 +135,7 @@ export function registerRepositoryResources(server: McpServer): void {
         const repoId = `${ownerStr}/${repoStr}`;
 
         // Check if repository needs indexing
-        let metadata = await repositoryStorage.getRepositoryMetadata(repoId);
+        const metadata = await repositoryStorage.getRepositoryMetadata(repoId);
 
         if (!metadata || repositoryIndexer.needsIndexing(metadata)) {
           await repositoryIndexer.indexRepository(ownerStr, repoStr, { forceReindex: false });
