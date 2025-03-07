@@ -11,5 +11,5 @@ export interface ParsedSection {
   /** The heading level of the section (h1, h2, etc.) */
   level: number;
   /** The original HTML content of the section */
-  originalHtml: string;
+  originalHtml?: string;
 }
