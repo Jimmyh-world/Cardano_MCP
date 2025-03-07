@@ -498,7 +498,7 @@ export class GeniusYieldAdapter implements SiteAdapter {
     maxDepth: number = 3,
     includeRepositories: boolean = true,
   ): Promise<{
-    contentTree: Record<string, unknown>;
+    contentTree: Record<string, any>;
     allPages: string[];
     repositories: string[];
   }> {
@@ -509,7 +509,7 @@ export class GeniusYieldAdapter implements SiteAdapter {
     const queue: Array<{ url: string; depth: number; parent: string | null }> = [
       { url: startUrl, depth: 0, parent: null },
     ];
-    const contentTree: Record<string, unknown> = {};
+    const contentTree: Record<string, any> = {};
     const foundRepositories: string[] = [];
 
     // Process queue until empty (breadth-first exploration)
@@ -537,12 +537,11 @@ export class GeniusYieldAdapter implements SiteAdapter {
           if (!contentTree[parent]) {
             contentTree[parent] = { children: {} };
           }
-          contentTree[parent].children[pathKey] = {
+          (contentTree[parent] as any).children[pathKey] = {
             url,
             title: content.metadata.title,
             sections: content.sections.length,
-            description: content.metadata.description,
-            children: {},
+            description: content.metadata.description || '',
           };
         } else {
           // Add as top-level entry
@@ -550,8 +549,7 @@ export class GeniusYieldAdapter implements SiteAdapter {
             url,
             title: content.metadata.title,
             sections: content.sections.length,
-            description: content.metadata.description,
-            children: {},
+            description: content.metadata.description || '',
           };
         }
 
@@ -670,7 +668,7 @@ export class GeniusYieldAdapter implements SiteAdapter {
     repoUrl: string,
     maxDepth: number = 3,
   ): Promise<{
-    structure: Record<string, unknown>;
+    structure: Record<string, any>;
     files: Array<{ path: string; type: string; url: string }>;
   }> {
     console.log(`Exploring repository: ${repoUrl}`);
@@ -700,10 +698,9 @@ export class GeniusYieldAdapter implements SiteAdapter {
       const defaultBranch = branchElement?.textContent?.trim() || 'main';
 
       // Start with repository root directory
-      const structure: Record<string, unknown> = {
+      const structure: Record<string, any> = {
         '/': {
           type: 'directory',
-          path: '/',
           items: {},
         },
       };
@@ -765,12 +762,11 @@ export class GeniusYieldAdapter implements SiteAdapter {
             if (!structure[path]) {
               structure[path] = {
                 type: 'directory',
-                path,
                 items: {},
               };
             }
 
-            structure[path].items[name] = {
+            (structure[path] as any).items[name] = {
               type,
               path: itemPath,
               name,

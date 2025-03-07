@@ -283,19 +283,21 @@ async function saveContent(
       );
 
       // Save code blocks separately
-      if (section.code && section.code.length > 0) {
+      if (section.codeBlocks && section.codeBlocks.length > 0) {
         const codeDir = path.join(sectionsDir, 'code');
         if (!fs.existsSync(codeDir)) {
           fs.mkdirSync(codeDir, { recursive: true });
         }
 
-        section.code.forEach((code: { language: string; content: string }, codeIndex: number) => {
-          const extension = code.language || 'txt';
-          fs.writeFileSync(
-            path.join(codeDir, `${filename}-section-${index}-code-${codeIndex}.${extension}`),
-            code.content,
-          );
-        });
+        section.codeBlocks.forEach(
+          (codeBlock: { language: string; content: string }, codeIndex: number) => {
+            const extension = codeBlock.language || 'txt';
+            fs.writeFileSync(
+              path.join(codeDir, `${filename}-section-${index}-code-${codeIndex}.${extension}`),
+              codeBlock.content,
+            );
+          },
+        );
       }
     });
   }
