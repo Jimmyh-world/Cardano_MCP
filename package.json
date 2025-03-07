@@ -22,6 +22,7 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"**/*.ts\"",
+    "format:check": "prettier --check \"**/*.ts\"",
     "prepare": "husky install",
     "lint-staged": "lint-staged",
     "check-types": "tsc --noEmit",

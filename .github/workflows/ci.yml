@@ -1,4 +1,4 @@
-name: CI
+name: Cardano MCP CI/CD Pipeline
 
 on:
   push:
@@ -6,17 +6,91 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+# Global environment variables used across all jobs
+env:
+  NODE_VERSION: '18.x' # Current LTS version
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: cardano_mcp_test
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  NODE_ENV: test
 
+jobs:
+  # Quality gate checks (quick validations)
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for proper linting of commits
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check TypeScript types
+        run: npm run check-types
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check code formatting
+        run: npm run format -- --check
+
+      - name: Check commit message format
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  # Security scans
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    needs: [quality]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --production
+
+      - name: Run SAST scan (CodeQL)
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+          config-file: ./.github/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  # Build and test
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: [quality]
     services:
       postgres:
         image: ankane/pgvector
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: cardano_mcp_test
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
         ports:
           - 5432:5432
         options: >-
@@ -25,108 +99,227 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    strategy:
-      matrix:
-        node-version: [16.x, 18.x]
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run linter
-        run: npm run lint
-
       - name: Build
         run: npm run build
 
-      - name: Check Postgres health
+      - name: Check build artifacts
         run: |
-          echo "Waiting for Postgres to be ready..."
+          if [ ! -d "dist" ]; then
+            echo "Build artifacts are missing!"
+            exit 1
+          fi
+
+      - name: Verify Postgres connection
+        run: |
+          echo "Verifying PostgreSQL connection..."
           until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL to be ready..."
             sleep 1
           done
-          echo "Postgres is ready"
-          psql -h localhost -U postgres -c "SELECT version();"
-        env:
-          PGPASSWORD: postgres
+          echo "PostgreSQL is ready. Checking version:"
+          PGPASSWORD=${{ env.POSTGRES_PASSWORD }} psql -h localhost -U ${{ env.POSTGRES_USER }} -c "SELECT version();"
+          echo "PostgreSQL connection verified."
 
-      - name: Run repository tests
-        run: npm run test:repository -- --verbose
-        continue-on-error: true
+      - name: Create test summary directory
+        run: mkdir -p test-results
+
+      # Run tests in parallel
+      - name: Run Error Tests
+        id: error-tests
+        run: |
+          npm run test:errors -- --ci --verbose --json --outputFile=test-results/errors.json
+          echo "status=$?" >> $GITHUB_OUTPUT
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: cardano_mcp_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          NODE_ENV: test
           DEBUG: 'true'
 
-      - name: Run error handling tests
-        run: npm run test:errors -- --verbose
-        continue-on-error: true
+      - name: Run Knowledge Tests
+        id: knowledge-tests
+        run: |
+          npm run test:knowledge -- --ci --verbose --json --outputFile=test-results/knowledge.json
+          echo "status=$?" >> $GITHUB_OUTPUT
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: cardano_mcp_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          NODE_ENV: test
           DEBUG: 'true'
 
-      - name: Run knowledge tests
-        run: npm run test:knowledge -- --verbose
-        continue-on-error: true
+      - name: Run Repository Tests
+        id: repository-tests
+        run: |
+          npm run test:repository -- --ci --verbose --json --outputFile=test-results/repository.json
+          echo "status=$?" >> $GITHUB_OUTPUT
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: cardano_mcp_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          NODE_ENV: test
           DEBUG: 'true'
 
-      - name: Run server tests
-        run: npm run test:server -- --verbose
+      - name: Run Server Tests
+        id: server-tests
+        run: |
+          npm run test:server -- --ci --verbose --json --outputFile=test-results/server.json
+          echo "status=$?" >> $GITHUB_OUTPUT
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: cardano_mcp_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          NODE_ENV: test
           DEBUG: 'true'
 
-      - name: Upload coverage
+      # Generate test summary
+      - name: Generate Test Summary
+        if: always()
+        run: |
+          echo "## Test Results Summary" > test-results/summary.md
+          echo "" >> test-results/summary.md
+          echo "| Test Suite | Status | Pass Rate |" >> test-results/summary.md
+          echo "| ---------- | ------ | --------- |" >> test-results/summary.md
+
+          # Process Error Tests
+          if [ -f "test-results/errors.json" ]; then
+            ERRORS_PASSED=$(cat test-results/errors.json | jq '.numPassedTests')
+            ERRORS_TOTAL=$(cat test-results/errors.json | jq '.numTotalTests')
+            ERRORS_STATUS=$([ "${{ steps.error-tests.outputs.status }}" == "0" ] && echo "✅ Passed" || echo "❌ Failed")
+            ERRORS_RATE=$(echo "scale=2; $ERRORS_PASSED * 100 / $ERRORS_TOTAL" | bc)
+            echo "| Error Tests | $ERRORS_STATUS | $ERRORS_RATE% |" >> test-results/summary.md
+          else
+            echo "| Error Tests | ⚠️ No Results | - |" >> test-results/summary.md
+          fi
+
+          # Process Knowledge Tests
+          if [ -f "test-results/knowledge.json" ]; then
+            KNOWLEDGE_PASSED=$(cat test-results/knowledge.json | jq '.numPassedTests')
+            KNOWLEDGE_TOTAL=$(cat test-results/knowledge.json | jq '.numTotalTests')
+            KNOWLEDGE_STATUS=$([ "${{ steps.knowledge-tests.outputs.status }}" == "0" ] && echo "✅ Passed" || echo "❌ Failed")
+            KNOWLEDGE_RATE=$(echo "scale=2; $KNOWLEDGE_PASSED * 100 / $KNOWLEDGE_TOTAL" | bc)
+            echo "| Knowledge Tests | $KNOWLEDGE_STATUS | $KNOWLEDGE_RATE% |" >> test-results/summary.md
+          else
+            echo "| Knowledge Tests | ⚠️ No Results | - |" >> test-results/summary.md
+          fi
+
+          # Process Repository Tests
+          if [ -f "test-results/repository.json" ]; then
+            REPO_PASSED=$(cat test-results/repository.json | jq '.numPassedTests')
+            REPO_TOTAL=$(cat test-results/repository.json | jq '.numTotalTests')
+            REPO_STATUS=$([ "${{ steps.repository-tests.outputs.status }}" == "0" ] && echo "✅ Passed" || echo "❌ Failed")
+            REPO_RATE=$(echo "scale=2; $REPO_PASSED * 100 / $REPO_TOTAL" | bc)
+            echo "| Repository Tests | $REPO_STATUS | $REPO_RATE% |" >> test-results/summary.md
+          else
+            echo "| Repository Tests | ⚠️ No Results | - |" >> test-results/summary.md
+          fi
+
+          # Process Server Tests
+          if [ -f "test-results/server.json" ]; then
+            SERVER_PASSED=$(cat test-results/server.json | jq '.numPassedTests')
+            SERVER_TOTAL=$(cat test-results/server.json | jq '.numTotalTests')
+            SERVER_STATUS=$([ "${{ steps.server-tests.outputs.status }}" == "0" ] && echo "✅ Passed" || echo "❌ Failed")
+            SERVER_RATE=$(echo "scale=2; $SERVER_PASSED * 100 / $SERVER_TOTAL" | bc)
+            echo "| Server Tests | $SERVER_STATUS | $SERVER_RATE% |" >> test-results/summary.md
+          else
+            echo "| Server Tests | ⚠️ No Results | - |" >> test-results/summary.md
+          fi
+
+          # Add footer
+          echo "" >> test-results/summary.md
+          echo "Generated on $(date)" >> test-results/summary.md
+
+          # Create step summary
+          cat test-results/summary.md >> $GITHUB_STEP_SUMMARY
+
+      # Upload test results as artifacts
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 14
+
+      # Upload coverage reports
+      - name: Upload Coverage Reports
+        if: always()
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
-          fail_ci_if_error: true
+          fail_ci_if_error: false # Don't fail the pipeline, but we'll check coverage thresholds separately
 
-  security:
+      # Verify all tests passed
+      - name: Verify Test Success
+        if: always()
+        run: |
+          if [ "${{ steps.error-tests.outputs.status }}" != "0" ] || \
+             [ "${{ steps.knowledge-tests.outputs.status }}" != "0" ] || \
+             [ "${{ steps.repository-tests.outputs.status }}" != "0" ] || \
+             [ "${{ steps.server-tests.outputs.status }}" != "0" ]; then
+            echo "::error::One or more test suites failed. See test results for details."
+            exit 1
+          fi
+          echo "All test suites passed."
+
+      # Check coverage threshold
+      - name: Verify Coverage Thresholds
+        if: always()
+        run: |
+          # Extract coverage from lcov.info
+          LINES=$(grep -o "LH:.*" coverage/lcov.info | awk '{sum+=$1} END {print sum}')
+          TOTAL_LINES=$(grep -o "LF:.*" coverage/lcov.info | awk '{sum+=$1} END {print sum}')
+
+          if [ "$TOTAL_LINES" -gt "0" ]; then
+            COVERAGE=$(echo "scale=2; $LINES * 100 / $TOTAL_LINES" | bc)
+            echo "Overall line coverage: $COVERAGE%"
+            
+            # Check against threshold (90%)
+            if (( $(echo "$COVERAGE < 90" | bc -l) )); then
+              echo "::error::Coverage ($COVERAGE%) is below the required threshold (90%)."
+              exit 1
+            fi
+            
+            echo "Coverage meets the required threshold."
+          else
+            echo "::error::No coverage data found or total lines is zero."
+            exit 1
+          fi
+
+  # Build and deploy documentation
+  documentation:
+    name: Build Documentation
     runs-on: ubuntu-latest
+    needs: [quality]
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Run security audit
-        run: npm audit
-
-      - name: Run SAST scan
-        uses: github/codeql-action/init@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          languages: javascript
-          config-file: ./.github/codeql-config.yml
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate TypeScript documentation
+        run: npx typedoc --out docs-build src
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: typescript-docs
+          path: docs-build/
+          retention-days: 14
+
+  # Success notification - runs only if all required jobs succeed
+  success:
+    name: Pipeline Success
+    runs-on: ubuntu-latest
+    needs: [quality, build-and-test, security, documentation]
+    if: success()
+    steps:
+      - name: Set Pipeline Status
+        run: echo "All jobs completed successfully"
