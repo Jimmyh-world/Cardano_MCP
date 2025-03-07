@@ -1,10 +1,13 @@
 import { DocumentationMetadata } from '../../types/documentation';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ErrorFactory } from '../../utils/errors';
 import { ContentCleaner } from './ContentCleaner';
 import { HtmlValidator } from './HtmlValidator';
 import { MarkdownProcessor } from './MarkdownProcessor';
 import { MetadataGenerator } from './MetadataGenerator';
 import { ExtractedSection, SectionExtractor } from './SectionExtractor';
+import { AppError } from '../../utils/errors/core/app-error';
+import { ParsedSection } from '../../types/processors';
 
 /**
  * Configuration for the documentation parser
@@ -24,22 +27,6 @@ export interface ParserConfig {
   allowEmptyContent?: boolean;
   /** Whether to leniently parse HTML */
   lenientParsing?: boolean;
-}
-
-/**
- * Represents a parsed section of documentation
- */
-export interface ParsedSection {
-  /** Section title */
-  title: string;
-  /** Section content */
-  content: string;
-  /** Code blocks found in the section */
-  codeBlocks: string[];
-  /** Depth level in document hierarchy */
-  level: number;
-  /** Original HTML if formatting preserved */
-  originalHtml?: string;
 }
 
 /**
