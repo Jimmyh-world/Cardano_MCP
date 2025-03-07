@@ -269,35 +269,60 @@ async function saveContent(
   );
   console.log(`- Tags: ${content.metadata.tags?.join(', ') || 'None'}`);
 
-  // Save sections separately
+  // Save each section as markdown
   if (content.sections && content.sections.length > 0) {
-    const sectionsDir = path.join(outputDir, 'sections');
-    if (!fs.existsSync(sectionsDir)) {
-      fs.mkdirSync(sectionsDir, { recursive: true });
-    }
+    const sectionsDir = path.join(outputDir, `${filename}-sections`);
+    fs.mkdirSync(sectionsDir, { recursive: true });
 
-    content.sections.forEach((section: ExtractedSection, index: number) => {
+    // Save sections
+    content.sections.forEach((section, index) => {
+      const sectionFilename = section.title
+        ? section.title.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        : `section-${index}`;
+
+      // Save the section content as markdown
       fs.writeFileSync(
-        path.join(sectionsDir, `${filename}-section-${index}.json`),
-        JSON.stringify(section, null, 2),
+        path.join(sectionsDir, `${sectionFilename}.md`),
+        `# ${section.title}\n\n${section.content}`,
       );
 
-      // Save code blocks separately
+      // Save code blocks separately if they exist
       if (section.codeBlocks && section.codeBlocks.length > 0) {
         const codeDir = path.join(sectionsDir, 'code');
-        if (!fs.existsSync(codeDir)) {
-          fs.mkdirSync(codeDir, { recursive: true });
-        }
+        fs.mkdirSync(codeDir, { recursive: true });
 
-        section.codeBlocks.forEach(
-          (codeBlock: { language: string; content: string }, codeIndex: number) => {
-            const extension = codeBlock.language || 'txt';
+        // Process code blocks based on their type:
+        // If it's an array of strings, treat each string as code content with unknown language
+        // If it's an array of objects with language and content, use those fields directly
+        if (typeof section.codeBlocks[0] === 'string') {
+          // It's an array of strings
+          (section.codeBlocks as string[]).forEach((codeContent, codeIndex) => {
             fs.writeFileSync(
-              path.join(codeDir, `${filename}-section-${index}-code-${codeIndex}.${extension}`),
-              codeBlock.content,
+              path.join(codeDir, `${filename}-section-${index}-code-${codeIndex}.txt`),
+              codeContent,
             );
-          },
-        );
+          });
+        } else {
+          // It's an array of objects with language and content
+          try {
+            // First convert to unknown, then to the target type to avoid direct conversion error
+            const codeBlocksAsObjects = section.codeBlocks as unknown as Array<{
+              language: string;
+              content: string;
+            }>;
+
+            codeBlocksAsObjects.forEach((codeBlock, codeIndex) => {
+              const extension = codeBlock.language || 'txt';
+              fs.writeFileSync(
+                path.join(codeDir, `${filename}-section-${index}-code-${codeIndex}.${extension}`),
+                codeBlock.content,
+              );
+            });
+          } catch (error) {
+            console.error('Error processing code blocks:', error);
+            console.log('Code blocks type:', typeof section.codeBlocks[0], section.codeBlocks[0]);
+          }
+        }
       }
     });
   }

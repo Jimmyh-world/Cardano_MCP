@@ -623,7 +623,7 @@ export class AutomatedPipeline {
 async function demonstrateAutomatedPipeline(): Promise<void> {
   try {
     // Sample configuration
-    const config = {
+    const config: PipelineConfig = {
       documentationSources: [
         {
           id: 'cardano-docs',

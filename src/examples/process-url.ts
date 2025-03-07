@@ -60,33 +60,19 @@ async function processUrl() {
 }
 
 function createConfigForUrl(url: string, type: string, name: string, outputDir: string): any {
-  // Generate a unique ID for this source
-  const id = generateIdFromUrl(url);
+  if (!url) {
+    return null;
+  }
 
-  // Create a custom name if not provided
+  const id = generateIdFromUrl(url);
   const sourceName = name || getNameFromUrl(url);
 
-  if (type === 'documentation') {
-    return {
-      documentationSources: [
-        {
-          id,
-          name: sourceName,
-          location: url,
-          type: 'web' as 'web' | 'github' | 'local',
-          url,
-          content: '',
-          metadata: {},
-        },
-      ],
-      repositories: [],
-      outputDir,
-      maxConcurrentFetches: 3,
-      processingBatchSize: 10,
-    };
-  } else {
-    // Extract owner and repo from GitHub URL
+  if (type === 'github') {
     const { owner, repo } = extractGitHubInfo(url);
+    if (!owner || !repo) {
+      console.error('Could not extract GitHub owner and repo from URL:', url);
+      return null;
+    }
 
     return {
       documentationSources: [],
@@ -94,8 +80,8 @@ function createConfigForUrl(url: string, type: string, name: string, outputDir: 
         {
           owner,
           repo,
-          branch: 'main', // Default to main branch
-          includePaths: ['README.md', 'docs/**', '*.md'], // Default include paths
+          branch: 'main',
+          includePaths: ['**/*.md'],
         },
       ],
       outputDir,
@@ -103,6 +89,25 @@ function createConfigForUrl(url: string, type: string, name: string, outputDir: 
       processingBatchSize: 10,
     };
   }
+
+  // Assume web URL
+  return {
+    documentationSources: [
+      {
+        id,
+        name: sourceName,
+        location: url,
+        type: 'web',
+        url,
+        content: '',
+        metadata: {},
+      },
+    ],
+    repositories: [],
+    outputDir,
+    maxConcurrentFetches: 3,
+    processingBatchSize: 10,
+  };
 }
 
 // Helper function to generate ID from URL

@@ -94,7 +94,7 @@ export type Token = MarkedToken | HeadingToken | CodeToken | ParagraphToken | Li
 // Define the section type to avoid 'never' type issues
 export interface Section {
   title: string;
-  content: string[];
+  content: string[] | string;
   level: number;
   subsections: Section[];
   codeBlocks: string[];
@@ -107,7 +107,7 @@ interface ParsedSection {
   content: string;
   level: number;
   codeBlocks: string[];
-  subsections: Section[]; // Add this property
+  subsections?: Section[]; // Make it optional with '?'
 }
 
 /**
@@ -156,10 +156,6 @@ class EnhancedMarkdownProcessor {
       }
     });
 
-    // Generate document ID
-    const fileName = path.basename(filePath);
-    const docId = metadata.ID || fileName.replace('.md', '');
-
     // Parse the Markdown content
     const tokens = marked.lexer(markdownContent) as Token[];
 
@@ -172,11 +168,31 @@ class EnhancedMarkdownProcessor {
     // Process the HTML with our DocumentationParser
     const parsedSections = this.parser.parseHtml(html);
 
+    // Generate an ID for this document
+    const docId =
+      sourceId +
+      '_' +
+      path
+        .basename(filePath, '.md')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_');
+
     // Generate section IDs and metadata
-    const sectionsWithMetadata = parsedSections.map((section) => ({
-      section,
-      metadata: this.parser.generateMetadata(section, docId, filePath),
-    }));
+    const sectionsWithMetadata = parsedSections.map((section) => {
+      // Cast the section to any to avoid TypeScript errors
+      // This is a workaround for the type mismatch between ParsedSection and Section
+      const sectionWithSubsections = section as any;
+      if (!sectionWithSubsections.subsections) {
+        sectionWithSubsections.subsections = [];
+      }
+      if (!sectionWithSubsections.codeBlocks) {
+        sectionWithSubsections.codeBlocks = [];
+      }
+      return {
+        section: sectionWithSubsections as Section,
+        metadata: this.parser.generateMetadata(section, docId, filePath),
+      };
+    });
 
     // Combine the results
     return this.combineResults(docId, filePath, sections, sectionsWithMetadata);
@@ -211,19 +227,19 @@ class EnhancedMarkdownProcessor {
             if (parent) {
               parent.subsections.push(currentSection);
             } else {
-              // If no parent is found, add to root as a fallback
+              // If no parent is found, add to root
               rootSections.push(currentSection);
             }
           }
         }
 
-        // Create a new section
+        // Create a new section with properly defined types
         currentSection = {
           title: headingToken.text,
           content: [],
           level: headingToken.depth,
-          subsections: [],
           codeBlocks: [],
+          subsections: [],
         };
       } else if (token.type === 'code') {
         // Cast to CodeToken to access code-specific properties
@@ -254,18 +270,22 @@ class EnhancedMarkdownProcessor {
     });
 
     // Don't forget the last section
-    if (currentSection) {
-      currentSection.content = [...contentBuffer];
+    if (currentSection && typeof currentSection === 'object') {
+      // Explicitly check that currentSection is not null and is an object
+      // to avoid 'never' type errors
+      const section = currentSection as Section;
 
-      if (currentSection.level === 1) {
-        rootSections.push(currentSection);
+      section.content = [...contentBuffer] as string[] | string;
+
+      if (section.level === 1) {
+        rootSections.push(section);
       } else {
-        const parent = this.findParentSection(rootSections, currentSection.level);
+        const parent = this.findParentSection(rootSections, section.level);
         if (parent) {
-          parent.subsections.push(currentSection);
+          parent.subsections.push(section);
         } else {
           // If no parent is found, add to root as a fallback
-          rootSections.push(currentSection);
+          rootSections.push(section);
         }
       }
     }
@@ -319,11 +339,28 @@ class EnhancedMarkdownProcessor {
       // Find matching structured section
       const structuredSection = this.findStructuredSectionByTitle(sections, section.title);
 
+      // Ensure content is a string
+      const contentStr =
+        typeof section.content === 'string'
+          ? section.content
+          : Array.isArray(section.content)
+            ? section.content.join('\n\n')
+            : '';
+
+      // Ensure raw content is a string
+      const rawContentStr = structuredSection
+        ? typeof structuredSection.content === 'string'
+          ? structuredSection.content
+          : Array.isArray(structuredSection.content)
+            ? structuredSection.content.join('\n\n')
+            : ''
+        : contentStr;
+
       // Combine the raw content from the structured section with the parsed content
       return {
         id: metadata.id,
-        content: section.title ? `# ${section.title}\n\n${section.content}` : section.content,
-        rawContent: structuredSection ? structuredSection.content.join('\n\n') : section.content,
+        content: section.title ? `# ${section.title}\n\n${contentStr}` : contentStr,
+        rawContent: rawContentStr,
         metadata: {
           source: docId,
           path: metadata.path,
@@ -334,9 +371,12 @@ class EnhancedMarkdownProcessor {
           lastUpdated: new Date().toISOString(),
           extractedCodeBlocks: section.codeBlocks?.length || 0,
         },
-        codeBlocks: structuredSection
-          ? structuredSection.codeBlocks.map((code: string) => ({ language: '', code }))
-          : section.codeBlocks?.map((code: string) => ({ language: '', code })) || [],
+        codeBlocks:
+          structuredSection && structuredSection.codeBlocks
+            ? structuredSection.codeBlocks.map((code) => ({ language: '', code }))
+            : section.codeBlocks
+              ? section.codeBlocks.map((code) => ({ language: '', code }))
+              : [],
       };
     });
 
