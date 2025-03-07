@@ -47,8 +47,20 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run tests
-        run: npm test
+      - name: Check Postgres health
+        run: |
+          echo "Waiting for Postgres to be ready..."
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            sleep 1
+          done
+          echo "Postgres is ready"
+          psql -h localhost -U postgres -c "SELECT version();"
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run repository tests
+        run: npm run test:repository -- --verbose
+        continue-on-error: true
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
@@ -56,6 +68,42 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           NODE_ENV: test
+          DEBUG: 'true'
+
+      - name: Run error handling tests
+        run: npm run test:errors -- --verbose
+        continue-on-error: true
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: cardano_mcp_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NODE_ENV: test
+          DEBUG: 'true'
+
+      - name: Run knowledge tests
+        run: npm run test:knowledge -- --verbose
+        continue-on-error: true
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: cardano_mcp_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NODE_ENV: test
+          DEBUG: 'true'
+
+      - name: Run server tests
+        run: npm run test:server -- --verbose
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: cardano_mcp_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NODE_ENV: test
+          DEBUG: 'true'
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3

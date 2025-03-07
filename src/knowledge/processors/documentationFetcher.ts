@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { JSDOM } from 'jsdom';
 import { DocumentationSource } from '../../types/documentation';
 import {
@@ -98,7 +98,7 @@ export class DocumentationFetcher {
           });
         } catch (error) {
           // Convert Axios errors to AppError before they hit the retry handler
-          throw NetworkErrorFactory.fromAxiosError(error as any, { source });
+          throw NetworkErrorFactory.fromAxiosError(error as AxiosError, { source });
         }
       }, retryConfig);
 

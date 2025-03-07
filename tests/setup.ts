@@ -122,18 +122,91 @@ const waitForServer = async (
 };
 
 /**
- * Cleans up all open handles
+ * Helper function to clean up any open handles
  */
 const cleanupHandles = () => {
-  console.log(`Cleaning up ${openHandles.length} open handles...`);
-  openHandles.forEach((handle) => {
+  if (openHandles.length > 0) {
+    console.log(`Cleaning up ${openHandles.length} open handles...`);
+
+    // Close all open handles
+    openHandles.forEach((handle) => {
+      try {
+        console.log(`Closing handle of type ${handle.type}`);
+        handle.close();
+      } catch (err) {
+        console.error(`Error closing handle of type ${handle.type}:`, err);
+      }
+    });
+
+    // Clear the handles array
+    openHandles = [];
+  }
+};
+
+/**
+ * Helper function to forcibly kill the mock server
+ */
+const forceKillServer = () => {
+  if (mockServer) {
+    console.log('Forcibly killing mock server...');
+
     try {
-      handle.close();
-    } catch (err) {
-      console.error(`Error closing ${handle.type} handle:`, err);
+      // On POSIX systems, -9 is SIGKILL which cannot be caught or ignored
+      process.kill(mockServer.pid as number, 'SIGKILL');
+    } catch (error) {
+      console.error('Error forcibly killing mock server:', error);
+    } finally {
+      mockServer = null;
     }
-  });
-  openHandles = [];
+  }
+};
+
+/**
+ * Stops the mock server if it's running
+ */
+export const stopMockServer = async (): Promise<void> => {
+  if (!mockServer) {
+    console.log('Mock server is not running, nothing to stop');
+    return;
+  }
+
+  console.log('Stopping mock server...');
+
+  try {
+    // First try to gracefully stop the server
+    mockServer.kill('SIGTERM');
+
+    // Wait for server to exit or force kill after timeout
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        if (mockServer) {
+          mockServer.once('exit', () => {
+            console.log('Mock server exited gracefully');
+            mockServer = null;
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      }),
+      new Promise<void>((_, reject) => {
+        setTimeout(() => {
+          console.log('Mock server exit timeout, forcing kill');
+          forceKillServer();
+          reject(new Error('Mock server exit timeout'));
+        }, SERVER_SHUTDOWN_TIMEOUT_MS);
+      }).catch(() => {
+        // Convert rejection to resolution after force kill
+        return Promise.resolve();
+      }),
+    ]);
+  } catch (error) {
+    console.error('Error stopping mock server:', error);
+    forceKillServer();
+  } finally {
+    // Always clean up handles regardless of how the server was stopped
+    cleanupHandles();
+  }
 };
 
 // Set up before all tests

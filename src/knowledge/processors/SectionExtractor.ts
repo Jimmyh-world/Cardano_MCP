@@ -273,7 +273,6 @@ export class SectionExtractor {
     nextHeading?: Element,
     codeBlocks: string[] = [],
   ): void {
-    const doc = currentHeading.ownerDocument;
     let current: Node | null = currentHeading.nextSibling;
 
     // Find all code blocks in this section

@@ -12,7 +12,7 @@ dotenv.config();
 /**
  * Main function to start the Cardano MCP Server
  */
-async function main() {
+async function main(): Promise<void> {
   console.log('Starting Cardano MCP Server...');
 
   // Create documentation components
