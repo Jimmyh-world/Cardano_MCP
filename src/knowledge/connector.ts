@@ -8,7 +8,7 @@ interface VectorData {
   id: string;
   content: string;
   embedding: number[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface KnowledgeConnector {

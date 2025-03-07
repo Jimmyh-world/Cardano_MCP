@@ -4,7 +4,6 @@ import { DocumentationSource } from '../../types/documentation';
 import {
   AppError,
   ErrorFactory,
-  ErrorHandler,
   NetworkErrorFactory,
   RetryHandler,
   RetryConfig,

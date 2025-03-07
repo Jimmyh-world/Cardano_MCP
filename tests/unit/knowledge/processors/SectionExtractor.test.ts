@@ -97,8 +97,8 @@ describe('SectionExtractor', () => {
     });
 
     it('should throw error for null or undefined input', () => {
-      expect(() => extractor.extractSections(null as any)).toThrow(AppError);
-      expect(() => extractor.extractSections(undefined as any)).toThrow(AppError);
+      expect(() => extractor.extractSections(null as unknown as string)).toThrow(AppError);
+      expect(() => extractor.extractSections(undefined as unknown as string)).toThrow(AppError);
     });
   });
 
