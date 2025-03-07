@@ -23,6 +23,23 @@ Pull requests are the best way to propose changes to the codebase. We actively w
 5. Make sure your code lints.
 6. Issue that pull request!
 
+## Continuous Integration/Continuous Delivery
+
+We use GitHub Actions for CI/CD. When you submit a pull request, the following checks will automatically run:
+
+1. **Quality Gates**:
+
+   - ESLint checks for code quality issues
+   - TypeScript type checking to ensure type safety
+   - Prettier formatting verification
+
+2. **Build and Test**:
+   - Full TypeScript build
+   - Unit and integration tests for all modules
+   - Test coverage threshold enforcement (>90% line coverage)
+
+All checks must pass before a pull request can be merged. If you encounter any issues with the CI/CD pipeline, please reach out to the maintainers.
+
 ## Any contributions you make will be under the MIT Software License
 
 In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.

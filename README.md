@@ -69,6 +69,12 @@ src/
 - DRY (Don't Repeat Yourself) principle
 - Security-first mindset
 - Comprehensive error handling
+- Continuous Integration/Continuous Delivery (CI/CD)
+  - GitHub Actions workflow for automated testing and quality assurance
+  - ESLint, TypeScript type checking, and Prettier format verification
+  - Parallel test execution for improved performance
+  - Test coverage threshold enforcement (>90% line coverage)
+  - Documentation generation (planned)
 
 ## Getting Started
 
