@@ -237,6 +237,10 @@ Key features:
 
 For detailed information, see the [knowledge module documentation](docs/features/knowledge-module/README.md).
 
+Additional documentation:
+
+- [Parser Testing Approach](docs/features/knowledge-module/parser-testing.md)
+
 ### Repositories Module
 
 The Repositories module provides functionality for indexing, querying, and managing GitHub repositories. This module enables the retrieval and processing of repository content, making it available for context-aware operations.

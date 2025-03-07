@@ -61,5 +61,10 @@ cardano-node/
 db/
 wallet/
 
+# Test data and outputs
+test-output/
+test-data/
+sample-data/
+
 # Local development notes
 whats_the_craic.md
