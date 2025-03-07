@@ -1,0 +1,19 @@
+Add test utilities and supplementary documentation
+
+This commit includes additional supporting files for our test configuration:
+
+1. Test Utilities:
+   - Added tests/utils/testUtils.ts with common testing functions
+   - Updated tests/setup.ts with improved mock server handling
+
+2. Documentation:
+   - Added detailed test category documentation
+   - Added test configuration troubleshooting guide
+
+3. Mock Server Improvements:
+   - Enhanced error handling in mock server
+   - Improved shutdown process to prevent hanging tests
+
+These changes complete our test infrastructure improvements by
+providing better test utilities, documentation, and fixing
+issues with the mock server setup. 

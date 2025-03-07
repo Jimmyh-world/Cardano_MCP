@@ -16,6 +16,10 @@ export interface DocumentationSource {
   lastFetched?: Date;
   /** Version or commit hash of the documentation */
   version?: string;
+  name: string;
+  url: string;
+  content: string;
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -58,6 +62,7 @@ export interface DocumentationChunk {
   tokenCount: number;
   /** References to other chunks */
   references: string[];
+  source: DocumentationSource;
 }
 
 /**
@@ -115,7 +120,7 @@ export enum DocumentationErrorType {
   CHUNK_ERROR = 'CHUNK_ERROR',
   EMBEDDING_ERROR = 'EMBEDDING_ERROR',
   STORAGE_ERROR = 'STORAGE_ERROR',
-  VALIDATION_ERROR = 'VALIDATION_ERROR'
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
 }
 
 /**
@@ -125,9 +130,9 @@ export class DocumentationError extends Error {
   constructor(
     public type: DocumentationErrorType,
     message: string,
-    public details?: unknown
+    public details?: unknown,
   ) {
     super(message);
     this.name = 'DocumentationError';
   }
-} 
+}

@@ -8,8 +8,6 @@ import {
   PromptEvent,
   McpResponse,
   ToolConfiguration,
-  McpRequest,
-  SecurityRequest,
 } from '../../types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -18,6 +16,13 @@ import WebSocket from 'ws';
 import { execSync } from 'child_process';
 import config from './config.json';
 import { validateConfig } from './connection';
+
+// Define interfaces for internal use
+interface McpRequest {
+  tools?: any[];
+  script?: string;
+  [key: string]: any;
+}
 
 /**
  * Implementation of the Cardano MCP Server Prompt System
@@ -340,7 +345,7 @@ export class CardanoPromptSystem implements PromptSystem {
   private async performSecurityReview(request: Record<string, unknown>): Promise<void> {
     try {
       // Perform security review logic here
-      const complexity = this.calculateComplexity(request as SecurityRequest);
+      const complexity = this.calculateComplexity(request as McpRequest);
       if (complexity > this.config.security_settings.validation.max_script_complexity) {
         throw new PromptError(
           PromptErrorType.SECURITY_VIOLATION,
@@ -421,8 +426,7 @@ export class CardanoPromptSystem implements PromptSystem {
     return (config.max_inputs || 0) <= maxInputs && (config.max_outputs || 0) <= maxOutputs;
   }
 
-  private calculateComplexity(request: Record<string, unknown>): number {
-    // Implement complexity calculation logic
+  private calculateComplexity(request: McpRequest): number {
     let complexity = 0;
     if (request.tools) {
       complexity += request.tools.length * 10;

@@ -1,3 +1,40 @@
+# LLM Prompts System
+
+## Directory Structure
+
+The prompts system is organized as follows:
+
+```
+src/prompts/
+├── implementation/     # Core implementation of the prompts system
+│   ├── index.ts       # Main implementation logic
+│   ├── config.d.ts    # Type definitions for configuration
+│   └── connection.ts  # Connection testing and validation
+├── templates/         # Prompt templates
+│   └── verify-token-policy.txt
+└── config.ts         # System configuration
+```
+
+## Components
+
+### Implementation
+
+- `index.ts`: Main implementation of the prompts system
+- `config.d.ts`: Type definitions for configuration files
+- `connection.ts`: Handles connection testing and validation
+
+### Templates
+
+Contains text templates used by the system for various prompt scenarios.
+
+### Configuration
+
+The `config.ts` file contains system-wide configuration settings.
+
+## Usage
+
+[Include usage examples and documentation here]
+
 # LLM System Prompts for Cardano Development
 
 ## Overview

@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { KnowledgeBase, KnowledgeQuery, KnowledgeQueryResult } from '../types/knowledge';
 
 dotenv.config();
 
@@ -8,6 +9,13 @@ interface VectorData {
   content: string;
   embedding: number[];
   metadata: Record<string, any>;
+}
+
+export interface KnowledgeConnector {
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  query(params: KnowledgeQuery): Promise<KnowledgeQueryResult>;
+  update(base: KnowledgeBase): Promise<void>;
 }
 
 class KnowledgeBaseConnector {

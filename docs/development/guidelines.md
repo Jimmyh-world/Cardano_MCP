@@ -2,172 +2,326 @@
 
 ## Core Principles
 
-- Follow KISS (Keep It Simple, Stupid) principle
-- Prioritize functionality and security over perfect code
-- Make deliberate decisions about technical debt
-- Document decisions and rationales
+- Test-Driven Development (TDD)
+- KISS (Keep It Simple, Stupid)
+- DRY (Don't Repeat Yourself)
+- Security First
+- Documentation Driven
+
+## Test-Driven Development Process
+
+### 1. Write the Test First
+
+```typescript
+describe('Documentation Resource', () => {
+  it('should fetch Blockfrost API documentation', async () => {
+    const result = await server.resource('docs://blockfrost/api').fetch();
+    expect(result.contents).toBeDefined();
+    expect(result.contents[0].text).toContain('Blockfrost');
+  });
+});
+```
+
+### 2. Run the Test (Should Fail)
+
+- Ensure the test fails for the expected reason
+- Verify test requirements are clear
+
+### 3. Write the Implementation
+
+```typescript
+server.resource('blockfrost-docs', 'docs://blockfrost/{section}', async (uri, { section }) => {
+  // Implementation here
+});
+```
+
+### 4. Run the Test (Should Pass)
+
+- Verify implementation meets requirements
+- Check for edge cases
+
+### 5. Refactor
+
+- Improve code quality
+- Maintain test coverage
+- Document changes
 
 ## Priority Levels
 
-### P0 - Critical (Must Fix Immediately)
+### P0 - Critical (Must Have Tests)
 
-- Runtime errors
-- Security vulnerabilities
-- Broken functionality
-- Failed tests
-- Blocking issues affecting other developers
+- Core server functionality
+- Security features
+- Data validation
+- API endpoints
 
-### P1 - Important (Should Fix Soon)
+### P1 - Important
 
-- Type errors that could lead to runtime issues
-- Missing error handling
-- Incomplete security checks
-- Performance issues affecting user experience
-- Documentation gaps in critical features
+- Documentation processing
+- Template generation
+- Error handling
+- Performance optimizations
 
-### P2 - Nice to Have (Fix When Convenient)
+### P2 - Nice to Have
 
-- Linting warnings
-- `any` type usage in TypeScript
-- Unused imports
-- Style inconsistencies
-- Minor documentation improvements
+- Additional features
+- UI improvements
+- Documentation updates
 
-## Handling Strategy
+## Code Organization
 
-### For P0 Issues
+### Directory Structure
 
-```typescript
-// Example of handling critical issues
-try {
-  // Critical functionality
-} catch (error) {
-  // Proper error handling
-  logger.error('Critical error:', error);
-  // Appropriate recovery or graceful degradation
-}
+```
+src/
+├── server/           # MCP Server implementation
+│   ├── mcpServer.ts  # CardanoMcpServer class
+│   ├── integrations/ # Module integration
+│   ├── resources/    # MCP resources
+│   ├── tools/        # MCP tools
+│   └── prompts/      # MCP prompts
+├── knowledge/        # Documentation and knowledge base
+│   └── processors/   # Documentation processors
+├── repositories/     # Repository indexing module
+│   ├── configs/      # Repository configurations
+│   ├── processors/   # Repository content processors
+│   ├── githubClient.ts # GitHub API client
+│   ├── indexer.ts    # Repository indexer
+│   ├── registry.ts   # Repository registry
+│   ├── storage.ts    # Content storage
+│   └── types.ts      # Type definitions
+├── types/            # Type definitions
+├── utils/            # Utility functions
+│   └── errors/       # Error handling system
+│       ├── core/     # Core error classes
+│       ├── factories/# Error factory classes
+│       ├── handlers/ # Error handlers (retry, etc.)
+│       └── types/    # Error type definitions
+├── tools/            # Development tools and utilities
+├── prompts/          # Prompt templates and configurations
+└── index.ts          # MCP server entry point
+
+tests/
+├── unit/            # Unit tests
+│   ├── knowledge/   # Knowledge module tests
+│   ├── repositories/ # Repository module tests
+│   ├── server/      # Server tests
+│   └── utils/       # Utility tests including error handling
+├── integration/     # Integration tests
+└── setup.ts         # Test setup and mock server configuration
 ```
 
-- Fix immediately
-- Add tests to prevent regression
-- Document the fix
-- Create post-mortem if necessary
-- Update relevant documentation
+### File Naming
 
-### For P1 Issues
+- `*.test.ts` for test files
+- `*.ts` for implementation files
+- Clear, descriptive names
 
-```typescript
-// TODO: [TICKET-123] Improve type safety in authentication flow
-// @ts-expect-error Temporary solution until proper types are implemented
-function authenticate(user: any) {
-  // Current implementation
-}
+## Testing Standards
+
+### Test Configuration
+
+We use a modular approach to test configuration:
+
+- `jest.base.config.js`: Base configuration shared by all test suites
+- `jest.knowledge.config.js`: Configuration for knowledge module tests
+- `jest.repository.config.js`: Configuration for repository module tests
+- `jest.server.config.js`: Configuration for server integration tests
+- `jest.errors.config.js`: Configuration for error handling tests
+- `jest.errors.standalone.js`: Standalone error tests configuration
+- `jest.repository.standalone.js`: Standalone repository tests configuration
+
+This approach allows us to run different test categories independently and with appropriate configurations.
+
+### Test Categories
+
+- **Unit Tests**: Tests for individual components without external dependencies
+- **Server Tests**: Tests that require the mock server
+- **Repository Tests**: Tests for the repository module
+- **Knowledge Tests**: Tests for the documentation processing module
+- **Error Tests**: Tests for the error handling system
+
+### Running Tests
+
+Use the appropriate npm script for your test category:
+
+```bash
+npm run test:knowledge     # Run knowledge module tests
+npm run test:repository    # Run repository tests
+npm run test:errors        # Run error handling tests
+npm run test:server        # Run server integration tests
+npm run test:debug         # Run tests with debugging options
+
+# Standalone tests (without mock server)
+npm run test:repository:standalone  # Run repository tests without server
+npm run test:errors:standalone      # Run error tests without server
 ```
 
-- Create detailed tickets
-- Fix in the next planned refactor
-- Add TODO comments with ticket references
-- Document in technical debt registry
+### Coverage Requirements
 
-### For P2 Issues
+- **Server Module**: 100% statement coverage
+- **Knowledge Module**: 95% statement, 90% branch coverage
+- **Repository Module**: 80% statement, 80% branch coverage
+- **Error Handling**: 90% statement, 85% branch coverage
+- **Overall**: Minimum 90% statement coverage
 
-```typescript
-// Technical Debt Item: Unused import cleanup needed
-// Priority: P2
-// Created: [Date]
-// Ticket: TECH-456
-// @ts-ignore
-import { unusedUtil } from './utils';
-```
+### Test Organization
 
-- Use appropriate ignore comments with explanations
-- Track in technical debt document
-- Batch fix during cleanup sprints
+- Group tests logically using `describe` and `it` blocks
+- Ensure test isolation (tests should not rely on other tests)
+- Use proper setup and teardown
+- Test both success and error scenarios
+- Include tests for edge cases and boundary conditions
 
-## Decision Framework
+## Documentation Requirements
 
-Before fixing any issue, ask:
+### Code Documentation
 
-1. Is it affecting functionality?
-2. Is it a security concern?
-3. Is it blocking other development?
-4. What's the cost/benefit of fixing it now vs. later?
+- JSDoc for public APIs
+- Clear function descriptions
+- Type documentation
+- Usage examples
 
-## Documentation Template
+### Feature Documentation
 
-```markdown
-## Technical Debt Item
+- Purpose and goals
+- Implementation details
+- Test coverage
+- Usage examples
+- Cross-references to related documentation
 
-### Description
+### Module Documentation
 
-Brief description of the issue
+Each module should have its own README.md that includes:
 
-### Priority
-
-P[0-2]
-
-### Created
-
-[Date]
-
-### Ticket
-
-[Link or ID]
-
-### Location
-
-[File path and line numbers]
-
-### Rationale
-
-Why we're deferring this fix
-
-### Acceptance Criteria
-
-What needs to be done to consider this resolved
-
-### Notes
-
-Any additional context or considerations
-```
-
-## Implementation Example
-
-```typescript
-// Technical Debt Item: Type safety improvement needed
-// Priority: P2
-// Created: 2024-03-21
-// Ticket: TECH-789
-// @ts-ignore Temporarily allowing any type until proper interface is defined
-function processData(data: any) {
-  // Implementation
-}
-```
+- Overview and purpose
+- Key components
+- API documentation
+- Usage examples
+- Testing approach
+- Integration guidelines
 
 ## Review Process
 
-### When to Review Technical Debt
+### Pull Request Requirements
 
-- During sprint planning
-- Before major releases
-- During dedicated cleanup sprints
-- When related code is being modified
+- All tests passing
+- Meeting coverage requirements
+- Documentation updated
+- Code review completed
+- TypeScript errors resolved
 
 ### Review Checklist
 
-- [ ] Are any P0 items pending?
-- [ ] Have P1 items been properly ticketed?
-- [ ] Is technical debt documented?
-- [ ] Are ignore comments properly explained?
-- [ ] Is the debt registry up to date?
+- [ ] Tests written first
+- [ ] Implementation follows tests
+- [ ] Coverage requirements met
+- [ ] Documentation updated
+- [ ] Code follows KISS principle
+- [ ] Security considerations addressed
+- [ ] TypeScript types properly implemented
+- [ ] Uses appropriate test configuration
+
+## Security Considerations
+
+### Code Security
+
+- Input validation
+- Error handling
+- Secure defaults
+- Audit logging
+
+### Testing Security
+
+- Security test cases
+- Edge case handling
+- Error scenarios
+- Vulnerability checks
+
+## Error Handling Standards
+
+### Error Hierarchy
+
+- Use the `AppError` base class for all application errors
+- Group errors by domain (network, validation, etc.)
+- Include appropriate context data with errors
+
+```typescript
+// Example of throwing an application error
+throw ErrorFactory.documentationFetchError('Failed to fetch documentation', originalError, {
+  url,
+  attempt,
+  maxRetries,
+});
+```
+
+### Error Factories
+
+- Use factory methods to create domain-specific errors
+- Include meaningful error messages
+- Attach original errors for debugging
+- Add relevant context data
+
+```typescript
+// Example of an error factory method
+static documentationValidationError(message: string, context?: Record<string, any>): AppError {
+  return new AppError(
+    message,
+    ErrorCode.DOC_VALIDATION_ERROR,
+    400,
+    undefined,
+    context
+  );
+}
+```
+
+### Retry Mechanism
+
+- Use the `RetryHandler` for operations that may fail temporarily
+- Configure appropriate retry counts and delays
+- Implement custom retry logic when needed
+
+```typescript
+// Example of retry handler usage
+const result = await RetryHandler.withRetry(async () => axios.get(url), {
+  maxRetries: 3,
+  retryDelay: 1000,
+  shouldRetry: (error) => error.code === ErrorCode.NETWORK_ERROR,
+});
+```
+
+### Error Testing
+
+- Test both successful and error scenarios
+- Mock error conditions for comprehensive testing
+- Verify error properties and context data
+- Test retry logic with simulated failures
+- Use appropriate error test configuration
+
+## TypeScript Best Practices
+
+- Use strict typing for all code
+- Avoid using `any` type
+- Create interfaces for data structures
+- Use generics for reusable components
+- Document complex types with JSDoc
+- Use type guards for runtime type checking
+- Implement proper error typing
 
 ## Maintenance
 
 This document should be:
 
+- Updated with each major change
 - Reviewed quarterly
-- Updated based on team feedback
 - Used in code reviews
-- Referenced in pull request templates
+- Referenced in pull requests
 
-Remember: The goal is to maintain high-quality code while being pragmatic about development speed and resource allocation.
+Remember: The goal is to maintain high-quality, secure, and maintainable code through consistent test-driven development practices.
+
+## Related Documentation
+
+- [TESTING.md](../../TESTING.md) - Comprehensive testing guide
+- [Test Categories](../testing/TEST_CATEGORIES.md) - Overview of test categories
+- [Test Configuration Fixes](../testing/TEST_CONFIGURATION_FIXES.md) - Recent testing improvements
+- [CHANGELOG.md](../../CHANGELOG.md) - Version history and changes

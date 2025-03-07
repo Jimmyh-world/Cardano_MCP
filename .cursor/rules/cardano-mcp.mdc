@@ -1,0 +1,283 @@
+---
+description: ALWAYS FOLLOW THESE RULES WHEN WORKING ON THE CARDANO_MCP PROJECT
+globs: 
+alwaysApply: true
+---
+
+# MCP Server Project-Specific Development Rules
+
+These rules complement our main development collaboration rules, focusing specifically on the Model Context Protocol (MCP) server project with TypeScript. This project serves as a specialized RAG (Retrieval-Augmented Generation) gateway to existing Cardano resources, documentation, and tools to assist with dApp development, smart contract writing/auditing, and UTXO management.
+
+## Project Purpose and Scope
+
+> The MCP server is a gateway to existing Cardano resources, not a reimplementation of blockchain functionality.
+
+- **Resource Integration**:
+  - Connect to existing Cardano resources and documentation
+    - *Good Example*: Creating APIs that fetch and contextualize documentation from Cardano repositories
+    - *Bad Example*: Attempting to reimplement Cardano functionality from scratch
+  - Map relationships between Cardano tools and resources
+    - *Good Example*: Building a knowledge graph that connects related documentation, tools, and code examples
+    - *Bad Example*: Storing isolated, disconnected resources without context
+  - Prioritize discoverability and context
+    - *Good Example*: Implementing metadata and tagging systems for efficient resource discovery
+    - *Bad Example*: Dumping raw documentation without organization or search capabilities
+
+- **RAG Implementation**:
+  - Design effective retrieval mechanisms for Cardano resources
+    - *Good Example*: Using semantic search to find relevant documentation based on user queries
+    - *Bad Example*: Only supporting exact keyword matching
+  - Implement context-aware generation
+    - *Good Example*: Synthesizing information from multiple sources to answer complex queries
+    - *Bad Example*: Returning only verbatim passages without integration
+  - Track resource provenance and citations
+    - *Good Example*: Always attributing information to its original source with links
+    - *Bad Example*: Presenting information without references to its origin
+
+## Architecture Design
+
+> The MCP server should utilize a modular architecture that facilitates integration with diverse Cardano resources.
+
+- **Domain Separation**:
+  - Organize by Cardano knowledge domains
+    - *Good Example*: Separate modules for smart contracts, wallet integration, and tokenization
+    - *Bad Example*: Mixing concerns across domain boundaries
+  - Create clear interfaces between domains
+    - *Good Example*: Well-defined APIs for cross-domain requests
+    - *Bad Example*: Tight coupling between domain modules
+
+- **Repository Pattern**:
+  - Abstract resource access behind consistent interfaces
+    - *Good Example*: `CardanoDocumentationRepository` with standardized methods
+    - *Bad Example*: Direct API calls to different sources scattered throughout the codebase
+  - Implement adapters for different resource types
+    - *Good Example*: Dedicated adapters for GitHub repositories, documentation sites, and community forums
+    - *Bad Example*: One-size-fits-all approach that can't effectively handle diverse resource types
+  - Cache effectively for performance
+    - *Good Example*: Implementing intelligent caching strategies with appropriate invalidation
+    - *Bad Example*: No caching or caching without consideration for freshness
+
+- **Extensibility Framework**:
+  - Define formal adapter interfaces for all resource types
+    - *Good Example*: 
+      ```typescript
+      interface ResourceAdapter<T extends CardanoResource> {
+        fetchResource(id: string): Promise<T>;
+        searchResources(query: SearchQuery): Promise<T[]>;
+        getLastUpdated(id: string): Promise<Date>;
+      }
+      ```
+    - *Bad Example*: Different integration methods for each resource type without a common interface
+  - Implement plugin registration system
+    - *Good Example*: Centralized registry where adapters can be dynamically registered and discovered
+    - *Bad Example*: Hardcoding resource adapters throughout the codebase
+  - Standardize resource metadata requirements
+    - *Good Example*: Common metadata fields required across all resource types
+    - *Bad Example*: Inconsistent metadata between different resource types
+
+- **Caching Strategy**:
+  - Implement tiered caching approach
+    - *Good Example*: In-memory cache for frequent queries, disk-based for larger datasets, with clear hierarchy
+    - *Bad Example*: Single caching mechanism regardless of access patterns or resource size
+  - Define resource-specific TTL policies
+    - *Good Example*: Short TTL for rapidly changing resources (e.g., price data), longer TTL for stable documentation
+    - *Bad Example*: Single TTL for all resource types
+  - Establish clear cache invalidation triggers
+    - *Good Example*: Webhooks from source repositories to trigger selective invalidation, scheduled validation for sources without webhooks
+    - *Bad Example*: Manual cache clearing or allowing indefinite cache retention
+  - Implement partial cache updates
+    - *Good Example*: Updating only changed portions of resource indexes rather than full reindexing
+    - *Bad Example*: Complete cache invalidation for minor changes
+
+## TypeScript Practices
+
+> Leverage TypeScript's strong typing system to model Cardano concepts accurately.
+
+- **Domain Modeling**:
+  - Create type definitions that match Cardano terminology
+    - *Good Example*: Types for `Address`, `Transaction`, `UTXO` that match blockchain concepts
+    - *Bad Example*: Generic types that don't reflect domain-specific concepts
+  - Use discriminated unions for resource types
+    - *Good Example*: `type CardanoResource = GitHubRepo | Documentation | Tutorial | Tool`
+    - *Bad Example*: `type Resource = { type: string, data: any }`
+  - Define clear interfaces for search and retrieval
+    - *Good Example*: `interface SearchResult<T extends CardanoResource> { ... }`
+    - *Bad Example*: Inconsistent return types from search functions
+
+- **Type Safety**:
+  - Implement strong typing for search parameters
+    - *Good Example*: `function search(params: SearchParams): Promise<SearchResults>`
+    - *Bad Example*: `function search(query: string, options?: any)`
+  - Use generics for resource handling
+    - *Good Example*: `async function getResource<T extends CardanoResource>(id: string): Promise<T>`
+    - *Bad Example*: Type casting resources after retrieval
+  - Leverage TypeScript's utility types for transformation
+    - *Good Example*: Using `Pick`, `Omit`, and `Partial` for creating DTOs
+    - *Bad Example*: Manual type duplication for similar concepts
+
+## Knowledge Management
+
+> Effectively organize and present Cardano knowledge to users.
+
+- **Content Indexing**:
+  - Implement semantic indexing of resources
+    - *Good Example*: Using embeddings to capture resource meaning and relationships
+    - *Bad Example*: Simple keyword indexing only
+  - Update indexes when source content changes
+    - *Good Example*: Webhooks or scheduled crawling to detect content updates
+    - *Bad Example*: Static indexing without updates
+  - Include metadata for filtering and sorting
+    - *Good Example*: Tagging resources with topics, difficulty levels, and update dates
+    - *Bad Example*: Minimal metadata that limits search refinement
+
+- **Resource Provenance and Attribution**:
+  - Track and preserve original source information
+    - *Good Example*: Storing complete source URLs, authors, and original publication dates
+    - *Bad Example*: Disconnecting content from its origin
+  - Implement license-aware content handling
+    - *Good Example*: Storing and respecting the license of each resource (MIT, Apache 2.0, CC-BY, etc.)
+    - *Bad Example*: Ignoring licensing considerations when aggregating content
+  - Provide clear attribution in all outputs
+    - *Good Example*: Including source attribution with every result or generated response
+    - *Bad Example*: Presenting information without crediting original sources
+  - Define boundaries for content reproduction
+    - *Good Example*: Clear policies on what content can be directly stored vs. referenced with clear rationale
+    - *Bad Example*: Storing complete copies of external content without permission
+  - Maintain change history
+    - *Good Example*: Tracking when indexed content was updated and how it has changed over time
+    - *Bad Example*: No versioning of indexed content
+
+- **Content Presentation**:
+  - Standardize resource presentation formats
+    - *Good Example*: Consistent template for different resource types with appropriate highlights
+    - *Bad Example*: Inconsistent presentation that varies by source
+  - Include relevant context and related resources
+    - *Good Example*: Showing related documentation, tools, and examples alongside results
+    - *Bad Example*: Presenting isolated resources without context
+  - Support progressive disclosure of complexity
+    - *Good Example*: Layered information presentation from basic to advanced
+    - *Bad Example*: All-or-nothing information dumps
+
+## Smart Contract Support
+
+> Provide tools and resources for secure smart contract development and auditing.
+
+- **Code Example Management**:
+  - Curate verified, secure code examples
+    - *Good Example*: Providing security-audited Plutus and Marlowe examples with annotations
+    - *Bad Example*: Including code samples without security validation
+  - Explain principles alongside examples
+    - *Good Example*: Annotating each code example with best practices and security considerations
+    - *Bad Example*: Providing code without explanation
+  - Version code examples with Cardano protocol versions
+    - *Good Example*: Clearly marking which examples work with which protocol versions
+    - *Bad Example*: Outdated examples without version context
+
+- **Security Guidelines**:
+  - Highlight common security pitfalls
+    - *Good Example*: Curated list of Cardano-specific security vulnerabilities with detection methods
+    - *Bad Example*: Generic security advice not specific to Cardano
+  - Link to auditing tools and resources
+    - *Good Example*: Integration with existing smart contract analysis tools
+    - *Bad Example*: No guidance on validation or auditing
+  - Maintain up-to-date security best practices
+    - *Good Example*: Regular updates based on ecosystem security developments
+    - *Bad Example*: Static security guidance that doesn't evolve
+
+## API Design
+
+> Create intuitive, consistent APIs for accessing Cardano knowledge.
+
+- **Query Interfaces**:
+  - Design intuitive search parameters
+    - *Good Example*: Structured query parameters with filtering options
+    - *Bad Example*: Overly complex query syntax with poor documentation
+  - Support natural language queries
+    - *Good Example*: Processing conversational queries into structured searches
+    - *Bad Example*: Requiring exact technical syntax for all queries
+  - Implement pagination and filtering
+    - *Good Example*: Consistent pagination across all endpoints with clear metadata
+    - *Bad Example*: Inconsistent result limiting across endpoints
+
+- **Response Structure**:
+  - Use consistent response formats
+    - *Good Example*: Standard envelope structure with metadata and results
+    - *Bad Example*: Different response structures for similar endpoints
+  - Include relevant metadata
+    - *Good Example*: Source information, last update time, and confidence scores
+    - *Bad Example*: Raw results without context
+  - Support multiple output formats
+    - *Good Example*: JSON, Markdown, and HTML output options
+    - *Bad Example*: Single rigid output format
+
+- **API Documentation**:
+  - Document with OpenAPI/Swagger
+    - *Good Example*: Complete API specifications with examples
+    - *Bad Example*: Incomplete or outdated documentation
+  - Include usage examples
+    - *Good Example*: Providing example queries and responses for common scenarios
+    - *Bad Example*: Documentation without practical examples
+  - Create interactive documentation
+    - *Good Example*: Playground for testing API calls directly from documentation
+    - *Bad Example*: Static documentation without interactivity
+
+## Testing Strategy
+
+> Project-specific testing approach for the MCP server.
+
+- **Knowledge Retrieval Testing**:
+  - Test search accuracy and relevance
+    - *Good Example*: Evaluating search results against human-rated relevance scores
+    - *Bad Example*: Testing only that search returns results, not their quality
+  - Create test fixtures for common queries
+    - *Good Example*: A suite of representative queries with expected results
+    - *Bad Example*: Ad-hoc testing without consistent evaluation
+  - Test cross-referencing between resources
+    - *Good Example*: Validating that related resources are correctly linked
+    - *Bad Example*: Testing resources in isolation only
+
+- **Content Freshness Testing**:
+  - Validate update mechanisms
+    - *Good Example*: Testing that index updates when source content changes
+    - *Bad Example*: No testing of content refresh mechanisms
+  - Test version tracking
+    - *Good Example*: Ensuring correct version information is maintained
+    - *Bad Example*: No validation of version metadata
+
+- **User Journey Testing**:
+  - Test complete information discovery flows
+    - *Good Example*: End-to-end tests of complex information-seeking scenarios
+    - *Bad Example*: Testing only individual API endpoints
+  - Validate helpfulness of responses
+    - *Good Example*: User-centered metrics for evaluating response quality
+    - *Bad Example*: Testing only technical correctness, not usefulness
+
+## Continuous Learning
+
+> The MCP server should improve over time based on usage patterns.
+
+- **Feedback Integration**:
+  - Collect user feedback on resource helpfulness
+    - *Good Example*: Simple rating system for search results and recommendations
+    - *Bad Example*: No mechanism for users to indicate helpful or unhelpful results
+  - Track common queries and gaps
+    - *Good Example*: Analyzing search patterns to identify missing content
+    - *Bad Example*: No analysis of query patterns or unfulfilled requests
+  - Prioritize improvements based on usage
+    - *Good Example*: Data-driven decisions about which areas to enhance
+    - *Bad Example*: Random or arbitrary improvement priorities
+
+- **Knowledge Base Expansion**:
+  - Systematically identify and add new resources
+    - *Good Example*: Regular process for discovering and integrating new Cardano resources
+    - *Bad Example*: Static resource set without expansion
+  - Update existing resources
+    - *Good Example*: Process for refreshing outdated information
+    - *Bad Example*: Allowing resources to become stale
+  - Archive obsolete content appropriately
+    - *Good Example*: Clear versioning and archiving of deprecated resources
+    - *Bad Example*: Mixing current and obsolete information
+
+## Conclusion
+
+These project-specific rules extend our main development collaboration rules to address the unique challenges of building the MCP server as a specialized gateway to Cardano resources. By following these guidelines, we ensure our implementation effectively connects users with the existing Cardano ecosystem, providing context-aware access to documentation, tools, and best practices for dApp development, smart contract creation, and blockchain interaction.
