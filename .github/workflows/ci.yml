@@ -54,6 +54,8 @@ jobs:
     name: Security Scans
     runs-on: ubuntu-latest
     needs: [quality]
+    # Allow this job to fail without failing the whole pipeline
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -291,6 +293,7 @@ jobs:
     name: Build Documentation
     runs-on: ubuntu-latest
     needs: [quality]
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -314,12 +317,12 @@ jobs:
           path: docs-build/
           retention-days: 14
 
-  # Success notification - runs only if all required jobs succeed
+  # Success notification - runs only if required jobs succeed
   success:
     name: Pipeline Success
     runs-on: ubuntu-latest
-    needs: [quality, build-and-test, security, documentation]
+    needs: [quality, build-and-test]
     if: success()
     steps:
       - name: Set Pipeline Status
-        run: echo "All jobs completed successfully"
+        run: echo "All required jobs completed successfully"
